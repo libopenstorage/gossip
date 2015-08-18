@@ -2,6 +2,7 @@ package proto
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 	"testing"
 	"time"
@@ -29,6 +30,13 @@ func fillUpNode(node *NodeInfo, i int) {
 func fillUpNodeInfo(nodes *NodeValue) {
 	for i := 0; i < len(nodes.Nodes); i++ {
 		fillUpNode(&nodes.Nodes[i], i)
+	}
+}
+
+func verifyNodeInfo(curr *NodeInfo, update *NodeInfo, t *testing.T) {
+	if curr.Id != update.Id ||
+		curr.LastUpdateTs != update.LastUpdateTs {
+		t.Error("Same NodeInfo Mismatch: c: ", curr, " u: ", update)
 	}
 }
 
@@ -372,4 +380,56 @@ func TestNodeValueUpdate(t *testing.T) {
 		t.Error("Same NodeInfo Mismatch: c: ", curr, " u: ", update.Nodes[lastNode])
 	}
 
+}
+
+func TestNodeValueDiffValue(t *testing.T) {
+	printTest("TestNodeValueDiffValue")
+	testLen := 6
+	curr := &NodeValue{Nodes: make([]NodeInfo, testLen)}
+	fillUpNodeInfo(curr)
+
+	// Case : storevalue diff is nil, returned storevalue must be empty
+	var diff StoreValueDiff
+	var result *NodeValue
+	result = curr.DiffValue(diff).(*NodeValue)
+	if result.Nodes == nil || len(result.Nodes) != 0 {
+		t.Error("Empty diff value expected, got: ", result.Nodes)
+	}
+
+	// Case : storevalue diff is non-nil but is empty, returned
+	// store value must be empty
+	diff.Ids = make([]NodeId, 0)
+	result = curr.DiffValue(diff).(*NodeValue)
+	if result.Nodes == nil || len(result.Nodes) != 0 {
+		t.Error("Empty diff value expected, got: ", result.Nodes)
+	}
+
+	// Case : diff contains random elements (has node ids greated
+	// than max of curr node id), store value has those
+	// elements
+	rand.Seed(time.Now().UnixNano())
+	diffIds := make([]NodeId, testLen*2+1)
+	for i := 0; i < testLen*2; i++ {
+		choice := rand.Intn(testLen * 2)
+		diffIds[choice] = NodeId(choice)
+	}
+	diff.Ids = diffIds
+	result = curr.DiffValue(diff).(*NodeValue)
+	if result.Nodes == nil || len(result.Nodes) == 0 {
+		t.Error("Non-emtpy diff expected, got: ", result.Nodes)
+	}
+	for i := 0; i < testLen; i++ {
+		if i < len(curr.Nodes) {
+			if diffIds[i] == curr.Nodes[i].Id {
+				fmt.Println("Verifying node id: ", i)
+				verifyNodeInfo(&curr.Nodes[i], &result.Nodes[i], t)
+			}
+		} else {
+			var tInval time.Time
+			if result.Nodes[i].Id != 0 ||
+				result.Nodes[i].LastUpdateTs != tInval {
+				t.Error("Nil Info expected, got: ", result.Nodes[i])
+			}
+		}
+	}
 }

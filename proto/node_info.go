@@ -30,6 +30,8 @@ type StoreValue interface {
 	Update(StoreValue)
 	UpdateSelfValue(interface{})
 	Diff(StoreValueMetaInfo) (diffNew StoreValueDiff, selfNew StoreValueDiff)
+	// DiffValue returns a StoreValue which is the diff
+	// which contains only elements requests by the StoreValueDiff
 	DiffValue(StoreValueDiff) StoreValue
 }
 
@@ -255,7 +257,7 @@ func (s *NodeValue) Diff(
 
 func (s *NodeValue) DiffValue(
 	svDiff StoreValueDiff) StoreValue {
-	sValue := &NodeValue{}
+	sValue := &NodeValue{Nodes: make([]NodeInfo, 0)}
 	if svDiff.Ids == nil {
 		return sValue
 	}
