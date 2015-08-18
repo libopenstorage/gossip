@@ -277,11 +277,11 @@ func TestNodeValueDiff(t *testing.T) {
 
 }
 
-func verifyNodeInfoEquality(c *NodeValue, u *NodeValue, t *testing.T) {
+func verifyNodeInfoEquality(c *NodeValue, u *NodeValue, exclude int, t *testing.T) {
 	for i := 0; i < len(u.Nodes); i++ {
-		if c.Nodes[i].Id != u.Nodes[i].Id ||
-			c.Nodes[i].LastUpdateTs != u.Nodes[i].LastUpdateTs {
-			t.Error("NodeInfo Mismatch: c: ", c, " u: ", u)
+		if i != exclude && (c.Nodes[i].Id != u.Nodes[i].Id ||
+			c.Nodes[i].LastUpdateTs != u.Nodes[i].LastUpdateTs) {
+			t.Error("NodeInfo Mismatch: c: ", c.Nodes[i], " u: ", u.Nodes[i])
 		}
 	}
 }
@@ -305,7 +305,7 @@ func TestNodeValueUpdate(t *testing.T) {
 		t.Error("Len mismatch after update, curr: ", len(curr.Nodes),
 			" update: ", len(update.Nodes))
 	}
-	verifyNodeInfoEquality(curr, update, t)
+	verifyNodeInfoEquality(curr, update, -1, t)
 
 	// Case: Current node is non-emtpy and update is nil
 	newNilUpdate := &NodeValue{}
@@ -314,7 +314,7 @@ func TestNodeValueUpdate(t *testing.T) {
 		t.Error("Len mismatch after update, curr: ", len(curr.Nodes),
 			" update: ", len(update.Nodes))
 	}
-	verifyNodeInfoEquality(curr, update, t)
+	verifyNodeInfoEquality(curr, update, -1, t)
 
 	// Case: Current node and update are non-nil, update being
 	// shorter than current nodes len
@@ -327,7 +327,7 @@ func TestNodeValueUpdate(t *testing.T) {
 		t.Error("Len mismatch after update, curr: ", len(curr.Nodes),
 			" original len: ", origLen)
 	}
-	verifyNodeInfoEquality(curr, update, t)
+	verifyNodeInfoEquality(curr, update, -1, t)
 	if curr.Nodes[2].Id != sameNodeInfo.Id ||
 		curr.Nodes[2].LastUpdateTs != sameNodeInfo.LastUpdateTs {
 		t.Error("Same NodeInfo Mismatch: c: ", curr, " u: ", sameNodeInfo)
@@ -343,7 +343,7 @@ func TestNodeValueUpdate(t *testing.T) {
 		t.Error("Len mismatch after update, curr: ", len(curr.Nodes),
 			" update len: ", len(update.Nodes))
 	}
-	verifyNodeInfoEquality(curr, update, t)
+	verifyNodeInfoEquality(curr, update, -1, t)
 
 	// Case: Current node and update are non-nil, update being
 	// older than current node contents
@@ -359,7 +359,7 @@ func TestNodeValueUpdate(t *testing.T) {
 		t.Error("Len mismatch after update, curr: ", len(curr.Nodes),
 			" update len: ", len(update.Nodes))
 	}
-	verifyNodeInfoEquality(curr, copyOfCurr, t)
+	verifyNodeInfoEquality(curr, copyOfCurr, -1, t)
 
 	// Case: Current node and update are non-nil, update has only
 	// one new element
@@ -374,7 +374,7 @@ func TestNodeValueUpdate(t *testing.T) {
 		t.Error("Len mismatch after update, curr: ", len(curr.Nodes),
 			" update len: ", len(update.Nodes))
 	}
-	verifyNodeInfoEquality(curr, copyOfCurr, t)
+	verifyNodeInfoEquality(curr, copyOfCurr, -1, t)
 	if curr.Nodes[lastNode].Id != update.Nodes[lastNode].Id ||
 		curr.Nodes[lastNode].LastUpdateTs != update.Nodes[lastNode].LastUpdateTs {
 		t.Error("Same NodeInfo Mismatch: c: ", curr, " u: ", update.Nodes[lastNode])
@@ -431,5 +431,27 @@ func TestNodeValueDiffValue(t *testing.T) {
 				t.Error("Nil Info expected, got: ", result.Nodes[i])
 			}
 		}
+	}
+}
+
+func TestNodeValueUpdateSelfValue(t *testing.T) {
+	printTest("TestNodeValueUpdateSelfValue")
+	testLen := 10
+	curr := &NodeValue{Nodes: make([]NodeInfo, testLen)}
+	fillUpNodeInfo(curr)
+	copyOfCurr := &NodeValue{Nodes: make([]NodeInfo, testLen)}
+	copy(copyOfCurr.Nodes, curr.Nodes)
+
+	update := &NodeInfo{}
+	for i := 0; i < testLen; i += 2 {
+		update.Id = NodeId(i + 1)
+		update.LastUpdateTs = time.Now()
+		update.Value = "somevalue"
+
+		curr.UpdateSelfValue(update)
+		verifyNodeInfoEquality(curr, copyOfCurr, int(update.Id-1), t)
+		verifyNodeInfo(&curr.Nodes[update.Id-1], update, t)
+		// restore original copy
+		curr = copyOfCurr
 	}
 }

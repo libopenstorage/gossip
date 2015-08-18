@@ -124,8 +124,8 @@ func (s *NodeValue) IdInfo() StoreValueIdInfo {
 }
 
 func (s *NodeValue) UpdateSelfValue(val interface{}) {
-	var nodeInfo NodeInfo
-	nodeInfo, ok := val.(NodeInfo)
+	var nodeInfo *NodeInfo
+	nodeInfo, ok := val.(*NodeInfo)
 	if !ok {
 		log.Error("Invalid type for value Update(): ", reflect.TypeOf(val))
 		return
@@ -139,8 +139,11 @@ func (s *NodeValue) UpdateSelfValue(val interface{}) {
 	}
 
 	// Add asset len(s.Nodes) > nodeInfo.id
+	log.Debug("Updating Node: ", nodeInfo.Id,
+		" new: ", nodeInfo)
+	log.Debug("Orig: ", s.Nodes[nodeInfo.Id-1])
 	nodeInfo.LastUpdateTs = time.Now()
-	s.Nodes[nodeInfo.Id] = nodeInfo
+	s.Nodes[nodeInfo.Id-1] = *nodeInfo
 }
 
 func (s *NodeValue) Update(newStore StoreValue) {
