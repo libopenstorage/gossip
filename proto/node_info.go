@@ -298,25 +298,6 @@ type NewOldList struct {
 	OlderList StoreValueIdInfo
 }
 
-func (s *NodeValueMap) Update(newStore StoreValueMap) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	for key, newValue := range newStore {
-		newNodeValue, ok := newValue.(*NodeValue)
-		if !ok {
-			log.Error("Invalid type for StoreValue.Update()", reflect.TypeOf(newNodeValue))
-			return
-		}
-		selfValue, ok := s.kvMap[key]
-		if !ok {
-			s.kvMap[key] = newNodeValue
-			continue
-		}
-		selfValue.Update(newNodeValue)
-	}
-}
-
 func NewGossipStore() GossipStore {
 	n := &NodeValueMap{}
 	n.kvMap = make(map[StoreKey]*NodeValue)
@@ -397,11 +378,30 @@ func (s *NodeValueMap) Subset(nodes StoreValueIdInfoMap) StoreValueMap {
 	for key, nodeIdInfo := range nodes {
 		node, ok := s.kvMap[key]
 		if !ok {
-			log.Error("No subset for key ", key)
+			log.Info("No subset for key ", key)
 			continue
 		}
 		subset[key] = node.DiffValue(nodeIdInfo)
 	}
 
 	return subset
+}
+
+func (s *NodeValueMap) Update(newStore StoreValueMap) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	for key, newValue := range newStore {
+		newNodeValue, ok := newValue.(*NodeValue)
+		if !ok {
+			log.Error("Invalid type for StoreValue.Update()", reflect.TypeOf(newNodeValue))
+			return
+		}
+		selfValue, ok := s.kvMap[key]
+		if !ok {
+			s.kvMap[key] = newNodeValue
+			continue
+		}
+		selfValue.Update(newNodeValue)
+	}
 }

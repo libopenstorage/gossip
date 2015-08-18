@@ -40,9 +40,8 @@ func verifyNodeInfo(curr *NodeInfo, update *NodeInfo, t *testing.T) {
 	}
 }
 
-func verifyMetaInfo(nodes *NodeValue,
-	t *testing.T) {
-	m := nodes.MetaInfo()
+func verifyMetaInfo(nodes *NodeValue, m StoreValueMetaInfo, t *testing.T) {
+
 	metaInfo, ok := m.(NodeMetaInfoList)
 	if !ok {
 		t.Error("Invalid type returned for metaInfo ",
@@ -70,6 +69,12 @@ func verifyMetaInfo(nodes *NodeValue,
 				metaInfo.Id)
 		}
 	}
+}
+
+func verifyMetaInfoForNode(nodes *NodeValue,
+	t *testing.T) {
+	m := nodes.MetaInfo()
+	verifyMetaInfo(nodes, m, t)
 }
 
 func TestNodeValueMetaInfo(t *testing.T) {
@@ -104,7 +109,7 @@ func TestNodeValueMetaInfo(t *testing.T) {
 	for _, nodeInfo := range nodes.Nodes {
 		fmt.Println(nodeInfo)
 	}
-	verifyMetaInfo(&nodes, t)
+	verifyMetaInfoForNode(&nodes, t)
 }
 
 func TestNodeValueDiff(t *testing.T) {
@@ -453,5 +458,198 @@ func TestNodeValueUpdateSelfValue(t *testing.T) {
 		verifyNodeInfo(&curr.Nodes[update.Id-1], update, t)
 		// restore original copy
 		curr = copyOfCurr
+	}
+}
+
+/************** NodeValueMap Tests **********************/
+
+func verifyAllKeysPresent(resMap map[StoreKey]bool, t *testing.T) {
+	for key, value := range resMap {
+		if value != true {
+			// duplicate key found
+			t.Error("Missing key found: ", key)
+		}
+	}
+}
+
+func TestValueMapGetStoreKeys(t *testing.T) {
+	printTest("TestValueMapGetStoreKeys")
+	n := &NodeValueMap{}
+	n.kvMap = make(map[StoreKey]*NodeValue)
+
+	var store GossipStore
+	store = n
+
+	// Case: get keys on an empty store
+	keys := store.GetStoreKeys()
+	if keys == nil || len(keys) != 0 {
+		t.Error("Expected empty keys, got: ", keys)
+	}
+
+	// Case: get keys on a non-empty store
+	testKeys := []StoreKey{"kes1", "key2", "key3"}
+	resMap := make(map[StoreKey]bool)
+	for i := 0; i < len(testKeys); i++ {
+		n.kvMap[testKeys[i]] = &NodeValue{}
+		resMap[testKeys[i]] = false
+	}
+	keys = store.GetStoreKeys()
+	if keys == nil || len(keys) != len(testKeys) {
+		t.Error("Keys len mismatch, got: ", keys, " expected: ", testKeys)
+	}
+	for _, retKey := range keys {
+		_, ok := resMap[retKey]
+		if !ok {
+			t.Error("Invalid key returned, key: ", retKey,
+				", expected set: ", testKeys,
+				", returned set: ", keys)
+		}
+		if resMap[retKey] == true {
+			// duplicate key found
+			t.Error("Duplicate key found for key: ", retKey)
+		} else {
+			resMap[retKey] = true
+		}
+	}
+	verifyAllKeysPresent(resMap, t)
+
+}
+
+func TestValueMapMetaInfo(t *testing.T) {
+	printTest("TestValueMapMetaInfo")
+	n := &NodeValueMap{}
+	n.kvMap = make(map[StoreKey]*NodeValue)
+
+	var store GossipStore
+	store = n
+
+	// Case: get meta info on empty store
+	metaInfoMap := store.MetaInfo()
+	if len(metaInfoMap) != 0 {
+		t.Error("Empty meta info expected, got: ", metaInfoMap)
+	}
+
+	// Case: update node and check meta info is updated
+	testKeys := []StoreKey{"kes1", "key2", "key3"}
+	resMap := make(map[StoreKey]bool)
+	for i := 0; i < len(testKeys); i++ {
+		nodes := new(NodeValue)
+		nodes.Nodes = make([]NodeInfo, 3)
+		fillUpNodeInfo(nodes)
+		n.kvMap[testKeys[i]] = nodes
+	}
+	metaInfoMap = store.MetaInfo()
+	if len(metaInfoMap) != len(testKeys) {
+		t.Error("Mismatched metaInfo for map: ", metaInfoMap)
+	}
+	// check the meta info returned for each key
+	for key, metaInfo := range metaInfoMap {
+		verifyMetaInfo(n.kvMap[key], metaInfo, t)
+		resMap[key] = true
+	}
+	verifyAllKeysPresent(resMap, t)
+}
+
+func TestValueMapSubset(t *testing.T) {
+	printTest("TestValueMapSubset")
+	n := &NodeValueMap{}
+	n.kvMap = make(map[StoreKey]*NodeValue)
+
+	var store GossipStore
+	store = n
+
+	// Case: try to get a subset for empty input
+	idMap := make(StoreValueIdInfoMap)
+	subset := store.Subset(idMap)
+	if subset == nil || len(subset) != 0 {
+		t.Error("Expected empty subset, got: ", subset)
+	}
+
+	// Case: get a subset on with some keys present
+	// and some keys absent
+	testKeys := []StoreKey{"kes1", "key2", "key3", "key4"}
+	resMap := make(map[StoreKey]bool)
+	absentKeysMap := make(map[StoreKey]bool)
+
+	nodeLen := 10
+	absentKeysFrom := 3
+	for i := 0; i < len(testKeys); i++ {
+		nodes := new(NodeValue)
+		nodes.Nodes = make([]NodeInfo, nodeLen)
+		fillUpNodeInfo(nodes)
+		if i < absentKeysFrom {
+			n.kvMap[testKeys[i]] = nodes
+		} else {
+			absentKeysMap[testKeys[i]] = true
+		}
+
+		reqIds := make([]NodeId, nodeLen+5) // +5 for testing non-existing data
+		for j := 0; j < len(reqIds); j++ {
+			if i%2 == 0 && j%2 == 0 {
+				if j < nodeLen {
+					reqIds[j] = nodes.Nodes[j].Id
+				} else {
+					reqIds[j] = NodeId(j)
+				}
+				continue
+			}
+			if i%2 == 1 && j%2 == 1 {
+				if j < nodeLen {
+					reqIds[j] = nodes.Nodes[j].Id
+				} else {
+					reqIds[j] = NodeId(j)
+				}
+				continue
+			}
+		}
+		idMap[testKeys[i]] = StoreValueDiff{Ids: reqIds}
+	}
+	subset = store.Subset(idMap)
+
+	for key, value := range subset {
+		// test that the key must not be present
+		if _, ok := absentKeysMap[key]; ok == true {
+			t.Error("Subset returned unexpected key: ", key)
+			continue
+		}
+		resMap[key] = true
+		nodeValue, ok := value.(*NodeValue)
+		if !ok {
+			t.Error("Invalid type returned for nodeValue: ", reflect.TypeOf(value))
+			continue
+		}
+
+		// in this node value, we will check that keys
+		// requested are present, and those not requested are absent
+		reqIds := idMap[key].Ids.([]NodeId)
+		if len(reqIds) != len(nodeValue.Nodes) {
+			t.Error("Nodes absent, requested: ", reqIds,
+				" got: ", nodeValue.Nodes)
+			continue
+		}
+		for i, reqId := range reqIds {
+			if i >= nodeLen {
+				if nodeValue.Nodes[i].Id != 0 {
+					t.Error("Unexpected subset value: ", nodeValue.Nodes[i].Id)
+				}
+				continue
+			}
+			if reqId != nodeValue.Nodes[i].Id {
+				t.Error("Unexpected subset value: ", reqId,
+					" got: ", nodeValue.Nodes[i].Id)
+			}
+			if reqId > 0 {
+				verifyNodeInfo(&n.kvMap[key].Nodes[i], &nodeValue.Nodes[i], t)
+			}
+		}
+	}
+	// check any missing keys
+	for key, value := range resMap {
+		if value {
+			continue
+		}
+		if _, ok := absentKeysMap[key]; ok == false {
+			t.Error("Subset has missing data for key: ", key)
+		}
 	}
 }
