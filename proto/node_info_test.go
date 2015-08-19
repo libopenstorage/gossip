@@ -653,3 +653,83 @@ func TestValueMapSubset(t *testing.T) {
 		}
 	}
 }
+
+func TestValueMapUpdate(t *testing.T) {
+	printTest("TestValueMapUpdate")
+
+	// this will be holding the update
+	n := &NodeValueMap{}
+	n.kvMap = make(map[StoreKey]*NodeValue)
+	var store GossipStore
+	store = n
+
+	// Case: Create one node value store
+	// this will be holding the update
+	nodeLen := 20
+	origkvMap := make(map[StoreKey]*NodeValue)
+	ukvMap := make(map[StoreKey]StoreValue)
+
+	testKeys := []StoreKey{"key1", "key2", "key3",
+		"key4", "key5"}
+	for _, key := range testKeys {
+		nodes := new(NodeValue)
+		nodes.Nodes = make([]NodeInfo, nodeLen)
+		fillUpNodeInfo(nodes)
+		origkvMap[key] = nodes
+
+		sNodes := new(NodeValue)
+		sNodes.Nodes = make([]NodeInfo, nodeLen)
+		n.kvMap[key] = sNodes
+		copy(sNodes.Nodes, nodes.Nodes)
+
+		uNodes := new(NodeValue)
+		uNodes.Nodes = make([]NodeInfo, nodeLen)
+		ukvMap[key] = uNodes
+		copy(uNodes.Nodes, nodes.Nodes)
+	}
+
+	// split into two
+	rand.Seed(time.Now().UnixNano())
+	for i, key := range testKeys {
+		if i == len(testKeys)-1 {
+			delete(n.kvMap, key)
+			continue
+		}
+		// remove some nodes randomly from n map.
+		// from its first half
+		sNodes := n.kvMap[key]
+		for j := 0; j < len(sNodes.Nodes)/2; j++ {
+			//id := NodeId(rand.Intn(nodelen/2))
+			var nilNode NodeInfo
+			sNodes.Nodes[rand.Intn(nodeLen/2)] = nilNode
+		}
+
+		// from the update remove some nodes from lower
+		// half
+		uN := ukvMap[key]
+		uNodes := uN.(*NodeValue)
+		for j := 0; j < len(sNodes.Nodes)/2; j++ {
+			//id := NodeId(rand.Intn(nodelen/2))
+			var nilNode NodeInfo
+			uNodes.Nodes[len(sNodes.Nodes)/2+rand.Intn(nodeLen/2)] = nilNode
+		}
+	}
+
+	// call update
+	store.Update(ukvMap)
+	// this should now be same as the original store
+	for origKey, origValue := range origkvMap {
+		storeValue, ok := n.kvMap[origKey]
+		if !ok {
+			t.Error("Missing key in update: ", origKey)
+		}
+		if len(origValue.Nodes) != len(storeValue.Nodes) {
+			t.Error("Lengths mismatch, expected: ", origValue.Nodes,
+				" got: ", storeValue.Nodes)
+		}
+		verifyNodeInfoEquality(origValue, storeValue, -1, t)
+	}
+	if len(origkvMap) != len(n.kvMap) {
+		t.Error("Extra keys after update!")
+	}
+}
