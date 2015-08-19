@@ -17,6 +17,13 @@ func printTest(name string) {
 	fmt.Println("************* ", name, " *************")
 }
 
+func flipCoin() bool {
+	if rand.Intn(100) < 50 {
+		return true
+	}
+	return false
+}
+
 func fillUpNode(node *NodeInfo, i int) {
 	node.Id = NodeId(i + 1)
 	node.LastUpdateTs = time.Now()
@@ -30,6 +37,47 @@ func fillUpNode(node *NodeInfo, i int) {
 func fillUpNodeInfo(nodes *NodeValue) {
 	for i := 0; i < len(nodes.Nodes); i++ {
 		fillUpNode(&nodes.Nodes[i], i)
+	}
+}
+
+func verifyDiffMapEquality(s StoreValueIdInfoMap,
+	idMapSelfNew StoreValueIdInfoMap,
+	t *testing.T) {
+	if len(s) != len(idMapSelfNew) {
+		t.Error("Len of diffs do not match, got: ", len(s),
+			" , expected: ", len(idMapSelfNew))
+	}
+	keySet := make(map[StoreKey]bool)
+	for key, _ := range idMapSelfNew {
+		keySet[key] = false
+	}
+	for key, sDiff := range s {
+		DiffIds := sDiff.Ids.([]NodeId)
+		fmt.Println("Testing key: ", key)
+		e, ok := idMapSelfNew[key]
+		if !ok {
+			t.Error("Unexpected key returned: ", key)
+		}
+		keySet[key] = true
+		expectedIds := e.Ids.([]NodeId)
+		if len(expectedIds) != len(DiffIds) {
+			t.Error("Ids len mismatch, got: ", len(DiffIds),
+				" expected: ", len(expectedIds))
+		}
+		fmt.Println("Expecting: ", expectedIds)
+		fmt.Println("got:       ", DiffIds)
+		for i := 0; i < len(expectedIds); i++ {
+			if expectedIds[i] != DiffIds[i] {
+				t.Error("Ids Mismatch, got: ", DiffIds[i],
+					" expected: ", expectedIds[i])
+			}
+		}
+	}
+	// ensure all keys are present
+	for key, val := range keySet {
+		if val != true {
+			t.Error("Expected key missing: ", key)
+		}
 	}
 }
 
@@ -77,8 +125,8 @@ func verifyMetaInfoForNode(nodes *NodeValue,
 	verifyMetaInfo(nodes, m, t)
 }
 
-func TestNodeValueMetaInfo(t *testing.T) {
-	printTest("TestNodeValueMetaInfo")
+func TestNFNodeValueMetaInfo(t *testing.T) {
+	printTest("TestNFNodeValueMetaInfo")
 	var nodes NodeValue
 	nodes.Nodes = make([]NodeInfo, 3)
 
@@ -112,8 +160,8 @@ func TestNodeValueMetaInfo(t *testing.T) {
 	verifyMetaInfoForNode(&nodes, t)
 }
 
-func TestNodeValueDiff(t *testing.T) {
-	printTest("TestNodeValueDiff")
+func TestNFNodeValueDiff(t *testing.T) {
+	printTest("TestNFNodeValueDiff")
 	var node_1, node_2 NodeValue
 
 	// Case: node_1 and node_2 both have nil nodes
@@ -291,8 +339,8 @@ func verifyNodeInfoEquality(c *NodeValue, u *NodeValue, exclude int, t *testing.
 	}
 }
 
-func TestNodeValueUpdate(t *testing.T) {
-	printTest("TestNodeValueUpdate")
+func TestNFNodeValueUpdate(t *testing.T) {
+	printTest("TestNFNodeValueUpdate")
 	curr := &NodeValue{}
 	update := &NodeValue{}
 
@@ -387,8 +435,8 @@ func TestNodeValueUpdate(t *testing.T) {
 
 }
 
-func TestNodeValueDiffValue(t *testing.T) {
-	printTest("TestNodeValueDiffValue")
+func TestNFNodeValueDiffValue(t *testing.T) {
+	printTest("TestNFNodeValueDiffValue")
 	testLen := 6
 	curr := &NodeValue{Nodes: make([]NodeInfo, testLen)}
 	fillUpNodeInfo(curr)
@@ -439,8 +487,8 @@ func TestNodeValueDiffValue(t *testing.T) {
 	}
 }
 
-func TestNodeValueUpdateSelfValue(t *testing.T) {
-	printTest("TestNodeValueUpdateSelfValue")
+func TestNFNodeValueUpdateSelfValue(t *testing.T) {
+	printTest("TestNFNodeValueUpdateSelfValue")
 	testLen := 10
 	curr := &NodeValue{Nodes: make([]NodeInfo, testLen)}
 	fillUpNodeInfo(curr)
@@ -472,8 +520,8 @@ func verifyAllKeysPresent(resMap map[StoreKey]bool, t *testing.T) {
 	}
 }
 
-func TestValueMapGetStoreKeys(t *testing.T) {
-	printTest("TestValueMapGetStoreKeys")
+func TestNFValueMapGetStoreKeys(t *testing.T) {
+	printTest("TestNFValueMapGetStoreKeys")
 	n := &NodeValueMap{}
 	n.kvMap = make(map[StoreKey]*NodeValue)
 
@@ -515,8 +563,8 @@ func TestValueMapGetStoreKeys(t *testing.T) {
 
 }
 
-func TestValueMapMetaInfo(t *testing.T) {
-	printTest("TestValueMapMetaInfo")
+func TestNFValueMapMetaInfo(t *testing.T) {
+	printTest("TestNFValueMapMetaInfo")
 	n := &NodeValueMap{}
 	n.kvMap = make(map[StoreKey]*NodeValue)
 
@@ -550,8 +598,8 @@ func TestValueMapMetaInfo(t *testing.T) {
 	verifyAllKeysPresent(resMap, t)
 }
 
-func TestValueMapSubset(t *testing.T) {
-	printTest("TestValueMapSubset")
+func TestNFValueMapSubset(t *testing.T) {
+	printTest("TestNFValueMapSubset")
 	n := &NodeValueMap{}
 	n.kvMap = make(map[StoreKey]*NodeValue)
 
@@ -654,8 +702,8 @@ func TestValueMapSubset(t *testing.T) {
 	}
 }
 
-func TestValueMapUpdate(t *testing.T) {
-	printTest("TestValueMapUpdate")
+func TestNFValueMapUpdate(t *testing.T) {
+	printTest("TestNFValueMapUpdate")
 
 	// this will be holding the update
 	n := &NodeValueMap{}
@@ -699,7 +747,6 @@ func TestValueMapUpdate(t *testing.T) {
 		// from its first half
 		sNodes := n.kvMap[key]
 		for j := 0; j < len(sNodes.Nodes)/2; j++ {
-			//id := NodeId(rand.Intn(nodelen/2))
 			var nilNode NodeInfo
 			sNodes.Nodes[rand.Intn(nodeLen/2)] = nilNode
 		}
@@ -709,7 +756,6 @@ func TestValueMapUpdate(t *testing.T) {
 		uN := ukvMap[key]
 		uNodes := uN.(*NodeValue)
 		for j := 0; j < len(sNodes.Nodes)/2; j++ {
-			//id := NodeId(rand.Intn(nodelen/2))
 			var nilNode NodeInfo
 			uNodes.Nodes[len(sNodes.Nodes)/2+rand.Intn(nodeLen/2)] = nilNode
 		}
@@ -732,4 +778,97 @@ func TestValueMapUpdate(t *testing.T) {
 	if len(origkvMap) != len(n.kvMap) {
 		t.Error("Extra keys after update!")
 	}
+}
+
+func TestNFValueMapDiff(t *testing.T) {
+	printTest("TestNFValueMapDiff")
+
+	rand.Seed(time.Now().UnixNano())
+	// this will be holding the update
+	n := &NodeValueMap{}
+	n.kvMap = make(map[StoreKey]*NodeValue)
+	var store GossipStore
+	store = n
+
+	nodeLen := 20
+
+	// Case: When the meta info contect passed for diff
+	// has the same content as the current state, diff
+	// must be empty
+	testKeys := []StoreKey{"key1", "key2", "key3",
+		"key4", "key5"}
+	for _, key := range testKeys {
+		nodes := new(NodeValue)
+		nodes.Nodes = make([]NodeInfo, nodeLen)
+		fillUpNodeInfo(nodes)
+		n.kvMap[key] = nodes
+
+	}
+
+	// diff must be empty
+	s, p := store.Diff(store.MetaInfo())
+	for key, sDiff := range s {
+		selfNewIds := sDiff.Ids.([]NodeId)
+		for _, id := range selfNewIds {
+			if id != INVALID_NODE_ID {
+				t.Error("Expected null ids, got: ", id, " for key: ", key)
+			}
+		}
+	}
+	for key, pDiff := range p {
+		peerNewIds := pDiff.Ids.([]NodeId)
+		for _, id := range peerNewIds {
+			if id != INVALID_NODE_ID {
+				t.Error("Expected null ids, got: ", id, " for key: ", key)
+			}
+		}
+	}
+
+	// from the meta info, create a new meta info
+	// such that it has few nodes which are newer
+	// than current list (so their ts is newer),
+	// and some which are older (their ts is older,
+	// thier ids are zero)
+	idMapSelfNew := make(StoreValueIdInfoMap)
+	idMapPeerNew := make(StoreValueIdInfoMap)
+
+	m := store.MetaInfo()
+	for key, meta := range m {
+		nodeMeta := meta.(NodeMetaInfoList)
+
+		peerNewIds := make([]NodeId, nodeLen)
+		selfNewIds := make([]NodeId, nodeLen)
+
+		for i := 0; i < len(nodeMeta.MetaInfos); i++ {
+			if flipCoin() {
+				peerNewIds[i] = nodeMeta.MetaInfos[i].Id
+				if flipCoin() {
+					// make meta info newer
+					nodeMeta.MetaInfos[i].LastUpdateTs = time.Now()
+				} else {
+					// or make the node id in the current
+					// map as nil
+					var nilNodeInfo NodeInfo
+					n.kvMap[key].Nodes[i] = nilNodeInfo
+				}
+			} else {
+				selfNewIds[i] = nodeMeta.MetaInfos[i].Id
+				if flipCoin() {
+					// make meta info older
+					n.kvMap[key].Nodes[i].LastUpdateTs = time.Now()
+				} else {
+					var nilNodeInfo NodeMetaInfo
+					nodeMeta.MetaInfos[i] = nilNodeInfo
+				}
+			}
+		}
+
+		idMapSelfNew[key] = StoreValueDiff{Ids: selfNewIds}
+		idMapPeerNew[key] = StoreValueDiff{Ids: peerNewIds}
+	}
+
+	// diff must be non-empty
+	p, s = store.Diff(m)
+	verifyDiffMapEquality(s, idMapSelfNew, t)
+	verifyDiffMapEquality(p, idMapPeerNew, t)
 }

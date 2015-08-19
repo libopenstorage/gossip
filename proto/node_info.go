@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+const (
+	INVALID_NODE_ID = 0
+)
+
 type StoreKey string
 
 // StoreValueMetaInfo is the meta info associated with
@@ -65,9 +69,9 @@ type GossipStore interface {
 
 	// Diff returns a tuple of lists, where
 	// first list is of the names of node for which
-	// the current data is newer as compared to the
-	// given meta info, and old list is the names
-	// of nodes for which the current data is older
+	// the current data is older as compared to the
+	// given meta info, and second list is the names
+	// of nodes for which the current data is newer
 	Diff(d StoreValueMetaInfoMap) (StoreValueIdInfoMap, StoreValueIdInfoMap)
 }
 
@@ -210,32 +214,35 @@ func (s *NodeValue) Diff(
 	newIdsValid, oldIdsValid := false, false
 	for i := 0; i < maxLen; i++ {
 		if i < selfLen && i < metaLen {
-			if metaInfo.MetaInfos[i].Id != 0 &&
-				metaInfo.MetaInfos[i].LastUpdateTs.After(s.Nodes[i].LastUpdateTs) {
+			if metaInfo.MetaInfos[i].Id != INVALID_NODE_ID &&
+				metaInfo.MetaInfos[i].LastUpdateTs.After(
+					s.Nodes[i].LastUpdateTs) {
 				newIdsValid = true
 				newIds[i] = metaInfo.MetaInfos[i].Id
-				oldIds[i] = 0
+				oldIds[i] = INVALID_NODE_ID
 				continue
-			} else if metaInfo.MetaInfos[i].LastUpdateTs.Before(s.Nodes[i].LastUpdateTs) {
-				if metaInfo.MetaInfos[i].Id > 0 {
+			} else if metaInfo.MetaInfos[i].Id == INVALID_NODE_ID ||
+				metaInfo.MetaInfos[i].LastUpdateTs.Before(
+					s.Nodes[i].LastUpdateTs) {
+				if metaInfo.MetaInfos[i].Id > INVALID_NODE_ID {
 					oldIdsValid = true
 				}
-				oldIds[i] = metaInfo.MetaInfos[i].Id
-				newIds[i] = 0
+				oldIds[i] = s.Nodes[i].Id
+				newIds[i] = INVALID_NODE_ID
 				continue
 			}
 		} else if i < selfLen {
 			// we have more nodes than meta info
 			oldIds[i] = s.Nodes[i].Id
-			newIds[i] = 0
-			if oldIds[i] > 0 {
+			newIds[i] = INVALID_NODE_ID
+			if oldIds[i] > INVALID_NODE_ID {
 				oldIdsValid = true
 			}
 		} else if i < metaLen {
 			// meta info has more nodes than us
 			newIds[i] = metaInfo.MetaInfos[i].Id
-			oldIds[i] = 0
-			if newIds[i] > 0 {
+			oldIds[i] = INVALID_NODE_ID
+			if newIds[i] > INVALID_NODE_ID {
 				newIdsValid = true
 			}
 		}
