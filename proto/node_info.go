@@ -30,7 +30,6 @@ type StoreValueDiff struct {
 // in a store
 type StoreValue interface {
 	MetaInfo() StoreValueMetaInfo
-	IdInfo() StoreValueIdInfo
 	Update(StoreValue)
 	UpdateSelfValue(interface{})
 	Diff(StoreValueMetaInfo) (diffNew StoreValueDiff, selfNew StoreValueDiff)
@@ -116,15 +115,6 @@ func (s *NodeValue) MetaInfo() StoreValueMetaInfo {
 		metaInfo.MetaInfos[i] = NodeMetaInfo{data.Id, data.LastUpdateTs}
 	}
 	return metaInfo
-}
-
-func (s *NodeValue) IdInfo() StoreValueIdInfo {
-	var idInfo NodeIdInfoList
-	idInfo.NodeIds = make([]NodeId, len(s.Nodes))
-	for _, data := range s.Nodes {
-		idInfo.NodeIds = append(idInfo.NodeIds, data.Id)
-	}
-	return idInfo
 }
 
 func (s *NodeValue) UpdateSelfValue(val interface{}) {

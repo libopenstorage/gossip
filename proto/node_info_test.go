@@ -896,8 +896,8 @@ func TestNFValueMapDiff(t *testing.T) {
 	verifyDiffMapEquality(p, idMapPeerNew, t)
 }
 
-func TestNFValueMapUpdateStoreValue(t *testing.T) {
-	printTest("TestNFValueMapUpdateStoreValue")
+func TestNFValueMapUpdateStoreAndGetStoreValue(t *testing.T) {
+	printTest("TestNFValueMapUpdateStoreAndGetStoreValue")
 
 	rand.Seed(time.Now().UnixNano())
 	n := &NodeValueMap{}
@@ -939,5 +939,10 @@ func TestNFValueMapUpdateStoreValue(t *testing.T) {
 		verifyStoreEquality(n, copyVal, key, int(updateNode.Id), t)
 		verifyNodeInfo(&n.kvMap[key].Nodes[updateNode.Id-1], updateNode, t)
 		copyVal.kvMap[key].Nodes[updateNode.Id-1] = *updateNode
+
+		// Test the GetStoreValue method
+		t1 := store.GetStoreValue(key).(*NodeValue)
+		t2 := copyVal.kvMap[key]
+		verifyNodeInfoEquality(t1, t2, -1, t)
 	}
 }
