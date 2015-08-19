@@ -280,7 +280,7 @@ func (s *NodeValue) DiffValue(
 	sValue.Nodes = make([]NodeInfo, len(newIds))
 	maxLen := len(s.Nodes)
 	for i, newId := range newIds {
-		if newId == 0 || i >= maxLen {
+		if newId == INVALID_NODE_ID || i >= maxLen {
 			// nothing to do
 			continue
 		}

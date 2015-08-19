@@ -146,7 +146,7 @@ func TestNFNodeValueMetaInfo(t *testing.T) {
 
 	// check empty node contents
 	for _, metaInfo := range metaInfo.MetaInfos {
-		if metaInfo.Id != 0 {
+		if metaInfo.Id != INVALID_NODE_ID {
 			t.Error("Invalid nodeId for null node: ", metaInfo.Id)
 		}
 	}
@@ -324,7 +324,7 @@ func TestNFNodeValueDiff(t *testing.T) {
 		}
 	}
 
-	if n2Ids[4] != 0 || n1Ids[4] != 0 {
+	if n2Ids[4] != INVALID_NODE_ID || n1Ids[4] != INVALID_NODE_ID {
 		t.Error("Common element wrongly passed n2: ", n2Ids[4], " n1: ", n1Ids[4])
 	}
 
@@ -479,7 +479,7 @@ func TestNFNodeValueDiffValue(t *testing.T) {
 			}
 		} else {
 			var tInval time.Time
-			if result.Nodes[i].Id != 0 ||
+			if result.Nodes[i].Id != INVALID_NODE_ID ||
 				result.Nodes[i].LastUpdateTs != tInval {
 				t.Error("Nil Info expected, got: ", result.Nodes[i])
 			}
@@ -677,7 +677,7 @@ func TestNFValueMapSubset(t *testing.T) {
 		}
 		for i, reqId := range reqIds {
 			if i >= nodeLen {
-				if nodeValue.Nodes[i].Id != 0 {
+				if nodeValue.Nodes[i].Id != INVALID_NODE_ID {
 					t.Error("Unexpected subset value: ", nodeValue.Nodes[i].Id)
 				}
 				continue
@@ -686,7 +686,7 @@ func TestNFValueMapSubset(t *testing.T) {
 				t.Error("Unexpected subset value: ", reqId,
 					" got: ", nodeValue.Nodes[i].Id)
 			}
-			if reqId > 0 {
+			if reqId != INVALID_NODE_ID {
 				verifyNodeInfo(&n.kvMap[key].Nodes[i], &nodeValue.Nodes[i], t)
 			}
 		}
