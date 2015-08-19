@@ -88,6 +88,15 @@ func verifyNodeInfo(curr *NodeInfo, update *NodeInfo, t *testing.T) {
 	}
 }
 
+func verifyNodeInfoEquality(c *NodeValue, u *NodeValue, exclude int, t *testing.T) {
+	for i := 0; i < len(u.Nodes); i++ {
+		if i != exclude && (c.Nodes[i].Id != u.Nodes[i].Id ||
+			c.Nodes[i].LastUpdateTs != u.Nodes[i].LastUpdateTs) {
+			t.Error("NodeInfo Mismatch: c: ", c.Nodes[i], " u: ", u.Nodes[i])
+		}
+	}
+}
+
 func verifyMetaInfo(nodes *NodeValue, m StoreValueMetaInfo, t *testing.T) {
 
 	metaInfo, ok := m.(NodeMetaInfoList)
@@ -123,6 +132,27 @@ func verifyMetaInfoForNode(nodes *NodeValue,
 	t *testing.T) {
 	m := nodes.MetaInfo()
 	verifyMetaInfo(nodes, m, t)
+}
+
+func verifyStoreEquality(u *NodeValueMap, o *NodeValueMap,
+	diffKey StoreKey, diffIndex int, t *testing.T) {
+
+	if len(u.kvMap) != len(o.kvMap) {
+		t.Error("StoreEquality error, key lens differ, u: ", len(u.kvMap),
+			", got: ", len(o.kvMap))
+	}
+
+	for key, _ := range o.kvMap {
+		uNodeValue := u.kvMap[key]
+		oNodeValue := o.kvMap[key]
+		excludeKey := -1
+		if key == diffKey {
+			excludeKey = diffIndex - 1
+		}
+		fmt.Println("Testing key: ", key, " ex: ", excludeKey,
+			" diffIndex: ", diffIndex, " givneKey: ", diffKey)
+		verifyNodeInfoEquality(uNodeValue, oNodeValue, excludeKey, t)
+	}
 }
 
 func TestNFNodeValueMetaInfo(t *testing.T) {
@@ -330,15 +360,6 @@ func TestNFNodeValueDiff(t *testing.T) {
 
 }
 
-func verifyNodeInfoEquality(c *NodeValue, u *NodeValue, exclude int, t *testing.T) {
-	for i := 0; i < len(u.Nodes); i++ {
-		if i != exclude && (c.Nodes[i].Id != u.Nodes[i].Id ||
-			c.Nodes[i].LastUpdateTs != u.Nodes[i].LastUpdateTs) {
-			t.Error("NodeInfo Mismatch: c: ", c.Nodes[i], " u: ", u.Nodes[i])
-		}
-	}
-}
-
 func TestNFNodeValueUpdate(t *testing.T) {
 	printTest("TestNFNodeValueUpdate")
 	curr := &NodeValue{}
@@ -494,6 +515,8 @@ func TestNFNodeValueUpdateSelfValue(t *testing.T) {
 	fillUpNodeInfo(curr)
 	copyOfCurr := &NodeValue{Nodes: make([]NodeInfo, testLen)}
 	copy(copyOfCurr.Nodes, curr.Nodes)
+
+	// TODO: Add a test to update on empty node
 
 	update := &NodeInfo{}
 	for i := 0; i < testLen; i += 2 {
@@ -871,4 +894,50 @@ func TestNFValueMapDiff(t *testing.T) {
 	p, s = store.Diff(m)
 	verifyDiffMapEquality(s, idMapSelfNew, t)
 	verifyDiffMapEquality(p, idMapPeerNew, t)
+}
+
+func TestNFValueMapUpdateStoreValue(t *testing.T) {
+	printTest("TestNFValueMapUpdateStoreValue")
+
+	rand.Seed(time.Now().UnixNano())
+	n := &NodeValueMap{}
+	n.kvMap = make(map[StoreKey]*NodeValue)
+	copyVal := &NodeValueMap{}
+	copyVal.kvMap = make(map[StoreKey]*NodeValue)
+
+	var store GossipStore
+	store = n
+
+	testKeys := []StoreKey{"kes1", "key2", "key3", "key4"}
+	nodeLen := 10
+	for i := 0; i < len(testKeys); i++ {
+		nodes := new(NodeValue)
+		nodes.Nodes = make([]NodeInfo, nodeLen)
+		fillUpNodeInfo(nodes)
+		n.kvMap[testKeys[i]] = nodes
+
+		copyNodes := new(NodeValue)
+		copyNodes.Nodes = make([]NodeInfo, nodeLen)
+		copy(copyNodes.Nodes, nodes.Nodes)
+		copyVal.kvMap[testKeys[i]] = copyNodes
+	}
+
+	updateNode := &NodeInfo{}
+	for _, key := range testKeys {
+		for {
+			i := rand.Intn(nodeLen)
+			if i != 0 {
+				updateNode.Id = NodeId(i)
+				break
+			}
+		}
+		fmt.Println("Modified node with id: ", int(updateNode.Id))
+		updateNode.LastUpdateTs = time.Now()
+		updateNode.Value = "just updated"
+
+		store.UpdateStoreValue(key, updateNode)
+		verifyStoreEquality(n, copyVal, key, int(updateNode.Id), t)
+		verifyNodeInfo(&n.kvMap[key].Nodes[updateNode.Id-1], updateNode, t)
+		copyVal.kvMap[key].Nodes[updateNode.Id-1] = *updateNode
+	}
 }

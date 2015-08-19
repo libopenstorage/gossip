@@ -318,7 +318,7 @@ func (s *NodeValueMap) UpdateStoreValue(key StoreKey, val interface{}) {
 	var nodeValue *NodeValue
 	nodeValue, ok := s.kvMap[key]
 	if !ok {
-		nodeValue.UpdateSelfValue(val)
+		nodeValue = new(NodeValue)
 		s.kvMap[key] = nodeValue
 	}
 	nodeValue.UpdateSelfValue(val)
