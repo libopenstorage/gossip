@@ -79,3 +79,19 @@ type GossipStore interface {
 	// of nodes for which the current data is newer
 	Diff(d StoreMetaInfo) (StoreNodes, StoreNodes)
 }
+
+type Gossiper interface {
+	// SetGossipInterval sets the gossip interval
+	SetGossipInterval(time.Time)
+	// GossipInterval gets the gossip interval
+	GossipInterval(time.Time)
+
+	// Stop stops the gossiping
+	Stop()
+
+	// AddNode adds a node to gossip with
+	AddNode(ip string) error
+
+	// RemoveNode removes the node to gossip with
+	RemoveNode(ip string) error
+}
