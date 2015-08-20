@@ -9,7 +9,7 @@ type StoreKey string
 type NodeStatus uint8
 
 const (
-	NODE_STATUS_INVALID = iota
+	NODE_STATUS_INVALID NodeStatus = iota
 	NODE_STATUS_UP
 	NODE_STATUS_DOWN
 )
@@ -27,7 +27,7 @@ type NodeMetaInfo struct {
 type NodeInfo struct {
 	Id           NodeId
 	LastUpdateTs time.Time
-	Status       uint8
+	Status       NodeStatus
 	Value        interface{}
 }
 
