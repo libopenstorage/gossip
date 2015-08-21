@@ -5,7 +5,7 @@ import (
 )
 
 func TestAddRemoveNode(t *testing.T) {
-	g := NewGossip("0.0.0.0:9010")
+	g := NewGossiper("0.0.0.0:9010", 1)
 
 	nodes := []string{"0.0.0.0:90011",
 		"0.0.0.0:90012", "0.0.0.0:90013",
@@ -51,5 +51,5 @@ outer:
 		t.Error("Non-existing node removal did not fail")
 	}
 
-	g.Done()
+	g.Stop()
 }

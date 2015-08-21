@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -14,11 +15,6 @@ const (
 	NODE_STATUS_DOWN
 )
 
-type GossipMember interface {
-	NodeId() NodeId
-	Update(StoreKey, interface{})
-}
-
 type NodeMetaInfo struct {
 	Id           NodeId
 	LastUpdateTs time.Time
@@ -31,8 +27,18 @@ type NodeInfo struct {
 	Value        interface{}
 }
 
-type NodeInfoList []NodeInfo
-type NodeMetaInfoList []NodeMetaInfo
+func (n NodeInfo) String() string {
+	return fmt.Sprintf("\nId: %v\nLastUpdateTs: %v\nStatus: : %v\nValue: %v",
+		n.Id, n.LastUpdateTs, n.Status, n.Value)
+}
+
+type NodeInfoList struct {
+	List []NodeInfo
+}
+
+type NodeMetaInfoList struct {
+	List []NodeMetaInfo
+}
 
 // StoreValue is a map where the key is the
 // StoreKey and the value is the NodeInfoList.
@@ -46,13 +52,17 @@ type StoreDiff map[StoreKey]map[NodeId]NodeInfo
 type StoreNodes map[StoreKey][]NodeId
 
 type GossipStore interface {
-	// NewGossipMember returns a new member with the given
-	// nodeId
-	NewGossipMember(NodeId) GossipMember
+	// NodeId of this Store
+	NodeId() NodeId
+
+	// Update updates the value for this node.
+	// Side-effects include updating the last update ts
+	// for this node.
+	UpdateSelf(StoreKey, interface{})
 
 	// GetStoreValue returns the StoreValue associated with
 	// the given key
-	GetStoreValue(key StoreKey) StoreValue
+	GetStoreKeyValue(key StoreKey) NodeInfoList
 
 	// GetStoreKeys returns all the keys present in the store
 	GetStoreKeys() []StoreKey
@@ -81,10 +91,13 @@ type GossipStore interface {
 }
 
 type Gossiper interface {
+	// Gossiper has a gossip store
+	GossipStore
+
 	// SetGossipInterval sets the gossip interval
-	SetGossipInterval(time.Time)
+	SetGossipInterval(time.Duration)
 	// GossipInterval gets the gossip interval
-	GossipInterval(time.Time)
+	GossipInterval() time.Duration
 
 	// Stop stops the gossiping
 	Stop()
@@ -94,4 +107,8 @@ type Gossiper interface {
 
 	// RemoveNode removes the node to gossip with
 	RemoveNode(ip string) error
+
+	// GetNodes returns a list of the connection addresses
+	// added via AddNode
+	GetNodes() []string
 }

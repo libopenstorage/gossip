@@ -1,8 +1,6 @@
 package proto
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	log "github.com/Sirupsen/logrus"
 	"math/rand"
@@ -10,8 +8,9 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+
+	"github.com/libopenstorage/gossip/api"
 )
 
 const (
@@ -32,17 +31,20 @@ func connectionString(ip string) string {
 }
 
 // Implements the UnreliableBroadcast interface
-type Gossip struct {
+type GossiperImpl struct {
+	// GossipstoreImpl implements the GossipStoreInterface
+	GossipStoreImpl
+
 	// node list, maintained separately
 	nodes     []string
 	name      string
-	id        NodeId
 	nodesLock sync.Mutex
 	// to signal exit gossip loop
-	done chan bool
+	done           chan bool
+	gossipInterval time.Duration
 
 	// the actual in-memory state
-	store GossipStore
+	store api.GossipStore
 }
 
 // Utility methods
@@ -53,15 +55,14 @@ func logAndGetError(msg string) error {
 
 // New returns an initialized Gossip node
 // which identifies itself with the given ip
-func NewGossip(ip string) *Gossip {
-	gs := NewGossipStore()
-	return new(Gossip).init(ip, gs)
+func NewGossiper(ip string, selfNodeId api.NodeId) api.Gossiper {
+	return new(GossiperImpl).init(ip, selfNodeId)
 }
 
-func (g *Gossip) init(ip string, gs GossipStore) *Gossip {
+func (g *GossiperImpl) init(ip string, selfNodeId api.NodeId) api.Gossiper {
+	g.id = selfNodeId
 	g.name = ip
 	g.nodes = make([]string, 10) // random initial capacity
-	g.store = gs
 	g.done = make(chan bool, 1)
 	rand.Seed(time.Now().UnixNano())
 	err := g.AddNode(ip)
@@ -72,11 +73,19 @@ func (g *Gossip) init(ip string, gs GossipStore) *Gossip {
 	return g
 }
 
-func (g *Gossip) Done() {
+func (g *GossiperImpl) Stop() {
 	g.done <- true
 }
 
-func (g *Gossip) AddNode(ip string) error {
+func (g *GossiperImpl) SetGossipInterval(t time.Duration) {
+	g.gossipInterval = t
+}
+
+func (g *GossiperImpl) GossipInterval() time.Duration {
+	return g.gossipInterval
+}
+
+func (g *GossiperImpl) AddNode(ip string) error {
 	g.nodesLock.Lock()
 	defer g.nodesLock.Unlock()
 
@@ -90,7 +99,7 @@ func (g *Gossip) AddNode(ip string) error {
 	return nil
 }
 
-func (g *Gossip) RemoveNode(ip string) error {
+func (g *GossiperImpl) RemoveNode(ip string) error {
 	g.nodesLock.Lock()
 	defer g.nodesLock.Unlock()
 
@@ -104,7 +113,7 @@ func (g *Gossip) RemoveNode(ip string) error {
 	return logAndGetError("Node being added already exists:" + ip)
 }
 
-func (g *Gossip) GetNodes() []string {
+func (g *GossiperImpl) GetNodes() []string {
 	g.nodesLock.Lock()
 	defer g.nodesLock.Unlock()
 
@@ -113,63 +122,11 @@ func (g *Gossip) GetNodes() []string {
 	return nodeList
 }
 
-// sendData serializes the given object and sends
-// it over the given connection. Returns nil if
-// it was successful, error otherwise
-func sendData(obj interface{}, conn net.Conn) error {
-	err := error(nil)
-	buf, err := json.Marshal(obj)
-	if err != nil {
-		log.Error("Failed to serialize message", err)
-		return err
-	}
-
-	for len(buf) > 0 {
-		l, err := conn.Write(buf)
-		if err != nil && err != syscall.EINTR {
-			log.Error("Write failed: ", err)
-			return err
-		}
-		buf = buf[l:]
-	}
-
-	return nil
-}
-
-// rcvData receives bytes over the connection
-// until it can marshal the object. msg is the
-// pointer to the object which will receive the data.
-// Returns nil if it was successful, error otherwise.
-func rcvData(msg interface{}, conn net.Conn) error {
-
-	msgBuffer := new(bytes.Buffer)
-
-	for {
-		// XXX FIXME: What if the other node sends crap ?
-		// this may never exit in such case
-		_, err := msgBuffer.ReadFrom(conn)
-		if err != nil && err != syscall.EINTR {
-			log.Error("Error reading data from peer:", err)
-			return err
-		}
-
-		err = json.Unmarshal(msgBuffer.Bytes(), msg)
-		if err != nil {
-			log.Warn("Received bad packet:", err)
-			return err
-		} else {
-			return nil
-		}
-	}
-
-	return nil
-}
-
 // getUpdatesFromPeer receives node data from the peer
 // for which the peer has more latest information available
-func (g *Gossip) getUpdatesFromPeer(conn net.Conn) error {
+func (g *GossiperImpl) getUpdatesFromPeer(conn net.Conn) error {
 
-	var newPeerData StoreValueMap
+	var newPeerData api.StoreDiff
 	err := rcvData(&newPeerData, conn)
 	if err != nil {
 		log.Error("Error fetching the latest peer data", err)
@@ -183,7 +140,7 @@ func (g *Gossip) getUpdatesFromPeer(conn net.Conn) error {
 
 // sendNodeMetaInfo sends a list of meta info for all
 // the nodes in the nodes's store to the peer
-func (g *Gossip) sendNodeMetaInfo(conn net.Conn) error {
+func (g *GossiperImpl) sendNodeMetaInfo(conn net.Conn) error {
 	msg := g.store.MetaInfo()
 	err := sendData(msg, conn)
 	return err
@@ -191,18 +148,18 @@ func (g *Gossip) sendNodeMetaInfo(conn net.Conn) error {
 
 // sendUpdatesToPeer sends the information about the given
 // nodes to the peer
-func (g *Gossip) sendUpdatesToPeer(diff *StoreValueIdInfoMap, conn net.Conn) error {
+func (g *GossiperImpl) sendUpdatesToPeer(diff *api.StoreNodes, conn net.Conn) error {
 	dataToSend := g.store.Subset(*diff)
 	return sendData(dataToSend, conn)
 }
 
-func (g *Gossip) handleGossip(conn net.Conn) {
-	var peerMetaInfoList StoreValueMetaInfoMap
+func (g *GossiperImpl) handleGossip(conn net.Conn) {
+	var peerMetaInfo api.StoreMetaInfo
 	err := error(nil)
 
 	// 1. Get the info about the node data that the sender has
 	// XXX FIXME : readPeerData must be passed using a pointer
-	err = rcvData(&peerMetaInfoList, conn)
+	err = rcvData(&peerMetaInfo, conn)
 	if err != nil {
 		return
 	}
@@ -210,7 +167,7 @@ func (g *Gossip) handleGossip(conn net.Conn) {
 	// 2. Compare with current data that this node has and get
 	//    the names of the nodes for which this node has stale info
 	//    as compared to the sender
-	diffNew, selfNew := g.store.Diff(peerMetaInfoList)
+	diffNew, selfNew := g.store.Diff(peerMetaInfo)
 
 	// 3. Send this list to the peer, and get the latest data
 	// for them
@@ -235,7 +192,7 @@ func (g *Gossip) handleGossip(conn net.Conn) {
 	}
 }
 
-func (g *Gossip) receive_loop() {
+func (g *GossiperImpl) receive_loop() {
 	l, err := net.Listen(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
 	if err != nil {
 		log.Println("Error listening:", err.Error())
@@ -258,7 +215,7 @@ func (g *Gossip) receive_loop() {
 
 // send_loop periodically connects to a random peer
 // and gossips about the state of the cluster
-func (g *Gossip) send_loop() {
+func (g *GossiperImpl) send_loop() {
 	tick := time.Tick(GOSSIP_INTERVAL)
 	for {
 		select {
@@ -275,9 +232,7 @@ func (g *Gossip) send_loop() {
 
 // selectGossipPeer randomly selects a peer
 // to gossip with from the list of nodes added
-// XXX/gsangle : should we add discovered nodes
-// from gossip data to this list of nodes as well ?
-func (g *Gossip) selectGossipPeer() string {
+func (g *GossiperImpl) selectGossipPeer() string {
 	g.nodesLock.Lock()
 	defer g.nodesLock.Unlock()
 
@@ -290,7 +245,7 @@ func (g *Gossip) selectGossipPeer() string {
 	return g.nodes[rand.Intn(nodesLen)]
 }
 
-func (g *Gossip) gossip() {
+func (g *GossiperImpl) gossip() {
 
 	// select a node to gossip with
 	peerNode := g.selectGossipPeer()
@@ -314,7 +269,7 @@ func (g *Gossip) gossip() {
 	}
 
 	// get a list of requested nodes from the peer and
-	var diff StoreValueIdInfoMap
+	var diff api.StoreNodes
 	err = rcvData(&diff, conn)
 	if err != nil {
 		log.Error("Failed to get request info to the peer: ", err)
