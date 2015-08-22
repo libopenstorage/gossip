@@ -223,7 +223,7 @@ func TestGossipStoreMetaInfo(t *testing.T) {
 func TestGossipStoreDiff(t *testing.T) {
 	printTestInfo()
 
-	nodeLen := 10
+	nodeLen := 20
 	g1 := NewGossipStore(ID).(*GossipStoreImpl)
 	g2 := NewGossipStore(ID).(*GossipStoreImpl)
 
@@ -300,9 +300,21 @@ func TestGossipStoreDiff(t *testing.T) {
 		// g2 has newer nodes with even id
 		for id, _ := range g2.kvMap[key] {
 			if id%2 == 0 {
-				nodeInfo := g2.kvMap[key][id]
-				nodeInfo.LastUpdateTs = time.Now()
-				g2.kvMap[key][id] = nodeInfo
+				if int(id) < nodeLen/2 {
+					nodeInfo := g2.kvMap[key][id]
+					nodeInfo.LastUpdateTs = time.Now()
+					g2.kvMap[key][id] = nodeInfo
+				} else {
+					// store have invalid node
+					if int(id) > (nodeLen/2 + nodeLen/4) {
+						nodeInfo := g1.kvMap[key][id]
+						nodeInfo.Status = api.NODE_STATUS_INVALID
+						g1.kvMap[key][id] = nodeInfo
+					} else {
+						// store has no node
+						delete(g1.kvMap[key], id)
+					}
+				}
 			}
 		}
 		// g1 has newer nodes with od ids
