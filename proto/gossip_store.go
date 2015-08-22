@@ -210,14 +210,14 @@ func (s *GossipStoreImpl) Subset(nodes api.StoreNodes) api.StoreDiff {
 			log.Info("No subset for key ", key)
 			continue
 		}
+
 		// create a new map to hold the diff
 		nodeInfoMap := make(NodeInfoMap)
-	inner:
 		for _, id := range nodeIdList {
 			_, ok := selfNodeInfos[id]
 			if !ok {
 				log.Info("Id missing from store, id: ", id, " for key: ", key)
-				continue inner
+				continue
 			}
 			nodeInfoMap[id] = selfNodeInfos[id]
 		}
@@ -249,7 +249,9 @@ func (s *GossipStoreImpl) Update(diff api.StoreDiff) {
 			continue
 		}
 		for id, info := range newValue {
-			selfValue[id] = info
+			if selfValue[id].LastUpdateTs.Before(info.LastUpdateTs) {
+				selfValue[id] = info
+			}
 		}
 	}
 }

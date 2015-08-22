@@ -414,16 +414,137 @@ func TestGossipStoreSubset(t *testing.T) {
 
 }
 
+func verifyNodeInfoMapEquality(store map[api.StoreKey]NodeInfoMap,
+	diff api.StoreDiff, t *testing.T) {
+	if len(store) != len(diff) {
+		t.Error("Updating empty store with non-empty diff gave error,",
+			" got: ", store, " expected: ", diff)
+	}
+	for key, nodeInfoMap := range store {
+		diffNodeInfoMap, ok := diff[key]
+		if !ok {
+			t.Error("Unexpected key in store after update: ", key)
+			continue
+		}
+
+		if len(diffNodeInfoMap) != len(nodeInfoMap) {
+			t.Error("Diff and store lengths mismatch, storelen: ",
+				len(nodeInfoMap), " diff len: ", len(diffNodeInfoMap),
+				" for key: ", key)
+		}
+
+		for id, nodeInfo := range nodeInfoMap {
+			diffNodeInfo, ok := diffNodeInfoMap[id]
+			if !ok {
+				t.Error("Store has unexpected node id: ", id)
+			}
+			if diffNodeInfo.Id != nodeInfo.Id ||
+				diffNodeInfo.LastUpdateTs != nodeInfo.LastUpdateTs ||
+				diffNodeInfo.Status != nodeInfo.Status {
+				// FIXME/ganesh: Add check for value, it be
+				// implement == operator.
+				t.Error("After update mismatch, diff: ", diffNodeInfo,
+					", store: ", nodeInfo, "key: ", key)
+			}
+		}
+	}
+}
+
+func copyStoreDiff(orig map[api.StoreKey]NodeInfoMap,
+	diff api.StoreDiff) {
+	for key, nodeInfoMap := range orig {
+		diffNodeInfoMap := make(NodeInfoMap)
+		for id, nodeInfo := range nodeInfoMap {
+			diffNodeInfoMap[id] = nodeInfo
+		}
+		diff[key] = diffNodeInfoMap
+	}
+
+}
+
+func makeNodesOld(nodeInfoMap NodeInfoMap, rem int, excludeId api.NodeId,
+	excludeSelfId bool) {
+	for id, nodeInfo := range nodeInfoMap {
+		if int(id)%2 == rem && id != excludeId {
+			if !(id == ID && excludeSelfId) {
+				olderTime := nodeInfo.LastUpdateTs.UnixNano() - 1000
+				nodeInfo.LastUpdateTs = time.Unix(0, olderTime)
+				nodeInfoMap[id] = nodeInfo
+			}
+		}
+	}
+}
+
+func TestGossipStoreUpdate(t *testing.T) {
+	printTestInfo()
+
+	g := NewGossipStore(ID).(*GossipStoreImpl)
+
+	// empty store and empty diff and non-empty diff
+	diff := api.StoreDiff{}
+	g.Update(diff)
+	if len(g.kvMap) != 0 {
+		t.Error("Updating empty store with empty diff gave non-empty store: ",
+			g.kvMap)
+	}
+
+	nodeLen := 10
+	keyList := []api.StoreKey{"key1", "key2", "key3", "key4", "key5"}
+	for _, key := range keyList {
+		nodeInfoMap := make(NodeInfoMap)
+		fillUpNodeInfoMap(nodeInfoMap, nodeLen)
+		diff[key] = nodeInfoMap
+	}
+	g.Update(diff)
+	verifyNodeInfoMapEquality(g.kvMap, diff, t)
+
+	// store and diff has values such that -
+	//   - diff has new keys
+	//   - diff has same keys but some ids are newer
+	//   - diff has same keys and same ids but content is newer
+	diff = api.StoreDiff{}
+	orig := api.StoreDiff{}
+	g.kvMap = make(map[api.StoreKey]NodeInfoMap)
+	for _, key := range keyList {
+		nodeInfoMap := make(NodeInfoMap)
+		fillUpNodeInfoMap(nodeInfoMap, nodeLen)
+		g.kvMap[key] = nodeInfoMap
+	}
+	copyStoreDiff(g.kvMap, diff)
+	copyStoreDiff(g.kvMap, orig)
+
+	// from the store delete key1
+	//FIXME: delete(g.kvMap, keyList[0])
+	// from the diff delete key4
+	delete(diff, keyList[3])
+
+	// now make the odd number ids older in store
+	// even number ids newer in diff
+	// nodeid ID is newer in diff
+	// nodeid 5 is left unchanged
+	for _, key := range keyList {
+		diffNodeInfoMap, ok := diff[key]
+		if ok && key != keyList[0] {
+			// id == 0 is keyList[0], which we deleted from store
+			// so don't modify it in the diff or else store value
+			// will be diff value which is different from orig
+			fmt.Println("deleting from DIFF key: ", key)
+			makeNodesOld(diffNodeInfoMap, 0, 5, false)
+		}
+		storeNodeInfoMap, ok := g.kvMap[key]
+		if ok && key != keyList[3] {
+			fmt.Println("deleting from store key: ", key)
+			makeNodesOld(storeNodeInfoMap, 1, 5, true)
+		}
+	}
+
+	g.Update(diff)
+	verifyNodeInfoMapEquality(g.kvMap, orig, t)
+
+}
+
 /*
  GetStoreKeys
  // no keys
  // some keys
-
- Update
- // empty store and empty diff and non-empty diff
- // non-empty store and empty diff
- // store and diff has values such that -
- //   - diff has new keys
- //   - diff has same keys but some ids are newer
- //   - diff has same keys and same ids but content is newer
 */
