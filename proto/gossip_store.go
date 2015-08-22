@@ -249,7 +249,8 @@ func (s *GossipStoreImpl) Update(diff api.StoreDiff) {
 			continue
 		}
 		for id, info := range newValue {
-			if selfValue[id].LastUpdateTs.Before(info.LastUpdateTs) {
+			if selfValue[id].Status == api.NODE_STATUS_INVALID ||
+				selfValue[id].LastUpdateTs.Before(info.LastUpdateTs) {
 				selfValue[id] = info
 			}
 		}

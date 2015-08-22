@@ -3,8 +3,6 @@ package proto
 import (
 	"fmt"
 	"math/rand"
-	//"reflect"
-	//"testing"
 	"runtime"
 	"testing"
 	"time"
@@ -414,8 +412,15 @@ func TestGossipStoreSubset(t *testing.T) {
 
 }
 
+func dumpNodeInfo(nodeInfoMap NodeInfoMap, s string, t *testing.T) {
+	t.Log("\nDUMPING : ", s, " : LEN: ", len(nodeInfoMap))
+	for _, nodeInfo := range nodeInfoMap {
+		t.Log(nodeInfo)
+	}
+}
+
 func verifyNodeInfoMapEquality(store map[api.StoreKey]NodeInfoMap,
-	diff api.StoreDiff, t *testing.T) {
+	diff api.StoreDiff, selfMaybeMissing bool, t *testing.T) {
 	if len(store) != len(diff) {
 		t.Error("Updating empty store with non-empty diff gave error,",
 			" got: ", store, " expected: ", diff)
@@ -428,9 +433,22 @@ func verifyNodeInfoMapEquality(store map[api.StoreKey]NodeInfoMap,
 		}
 
 		if len(diffNodeInfoMap) != len(nodeInfoMap) {
-			t.Error("Diff and store lengths mismatch, storelen: ",
-				len(nodeInfoMap), " diff len: ", len(diffNodeInfoMap),
-				" for key: ", key)
+			missingNodeId := make([]api.NodeId, 0)
+			for id, _ := range diffNodeInfoMap {
+				_, ok := nodeInfoMap[id]
+				if !ok {
+					missingNodeId = append(missingNodeId, id)
+				}
+			}
+			if len(missingNodeId) > 1 ||
+				!(len(missingNodeId) == 1 && missingNodeId[0] == ID &&
+					selfMaybeMissing) {
+				t.Error("Diff and store lengths mismatch, storelen: ",
+					len(nodeInfoMap), " diff len: ", len(diffNodeInfoMap),
+					" for key: ", key)
+				dumpNodeInfo(diffNodeInfoMap, "DIFF", t)
+				dumpNodeInfo(nodeInfoMap, "DIFF", t)
+			}
 		}
 
 		for id, nodeInfo := range nodeInfoMap {
@@ -467,8 +485,12 @@ func makeNodesOld(nodeInfoMap NodeInfoMap, rem int, excludeId api.NodeId,
 	for id, nodeInfo := range nodeInfoMap {
 		if int(id)%2 == rem && id != excludeId {
 			if !(id == ID && excludeSelfId) {
-				olderTime := nodeInfo.LastUpdateTs.UnixNano() - 1000
-				nodeInfo.LastUpdateTs = time.Unix(0, olderTime)
+				if flipCoin() {
+					olderTime := nodeInfo.LastUpdateTs.UnixNano() - 1000
+					nodeInfo.LastUpdateTs = time.Unix(0, olderTime)
+				} else {
+					nodeInfo.Status = api.NODE_STATUS_INVALID
+				}
 				nodeInfoMap[id] = nodeInfo
 			}
 		}
@@ -482,6 +504,7 @@ func TestGossipStoreUpdate(t *testing.T) {
 
 	// empty store and empty diff and non-empty diff
 	diff := api.StoreDiff{}
+	diff2 := make(map[api.StoreKey]NodeInfoMap)
 	g.Update(diff)
 	if len(g.kvMap) != 0 {
 		t.Error("Updating empty store with empty diff gave non-empty store: ",
@@ -490,20 +513,23 @@ func TestGossipStoreUpdate(t *testing.T) {
 
 	nodeLen := 10
 	keyList := []api.StoreKey{"key1", "key2", "key3", "key4", "key5"}
+	orig := api.StoreDiff{}
 	for _, key := range keyList {
 		nodeInfoMap := make(NodeInfoMap)
 		fillUpNodeInfoMap(nodeInfoMap, nodeLen)
 		diff[key] = nodeInfoMap
+		diff2[key] = nodeInfoMap
 	}
+	copyStoreDiff(diff2, orig)
 	g.Update(diff)
-	verifyNodeInfoMapEquality(g.kvMap, diff, t)
+	verifyNodeInfoMapEquality(g.kvMap, diff, false, t)
 
 	// store and diff has values such that -
 	//   - diff has new keys
 	//   - diff has same keys but some ids are newer
 	//   - diff has same keys and same ids but content is newer
 	diff = api.StoreDiff{}
-	orig := api.StoreDiff{}
+	orig = api.StoreDiff{}
 	g.kvMap = make(map[api.StoreKey]NodeInfoMap)
 	for _, key := range keyList {
 		nodeInfoMap := make(NodeInfoMap)
@@ -514,7 +540,7 @@ func TestGossipStoreUpdate(t *testing.T) {
 	copyStoreDiff(g.kvMap, orig)
 
 	// from the store delete key1
-	//FIXME: delete(g.kvMap, keyList[0])
+	delete(g.kvMap, keyList[0])
 	// from the diff delete key4
 	delete(diff, keyList[3])
 
@@ -528,23 +554,47 @@ func TestGossipStoreUpdate(t *testing.T) {
 			// id == 0 is keyList[0], which we deleted from store
 			// so don't modify it in the diff or else store value
 			// will be diff value which is different from orig
-			fmt.Println("deleting from DIFF key: ", key)
 			makeNodesOld(diffNodeInfoMap, 0, 5, false)
 		}
 		storeNodeInfoMap, ok := g.kvMap[key]
 		if ok && key != keyList[3] {
-			fmt.Println("deleting from store key: ", key)
 			makeNodesOld(storeNodeInfoMap, 1, 5, true)
 		}
 	}
 
 	g.Update(diff)
-	verifyNodeInfoMapEquality(g.kvMap, orig, t)
+	verifyNodeInfoMapEquality(g.kvMap, orig, true, t)
 
 }
 
-/*
- GetStoreKeys
- // no keys
- // some keys
-*/
+func TestGossipStoreGetStoreKeys(t *testing.T) {
+	printTestInfo()
+
+	g := NewGossipStore(ID).(*GossipStoreImpl)
+
+	keys := g.GetStoreKeys()
+	if len(keys) != 0 {
+		t.Error("Emtpy store returned keys: ", keys)
+	}
+
+	nodeLen := 10
+	keyList := []api.StoreKey{"key1", "key2", "key3", "key4", "key5"}
+	for _, key := range keyList {
+		nodeInfoMap := make(NodeInfoMap)
+		fillUpNodeInfoMap(nodeInfoMap, nodeLen)
+		g.kvMap[key] = nodeInfoMap
+	}
+
+	keys = g.GetStoreKeys()
+	if len(keys) != len(g.kvMap) {
+		t.Error("Storekeys length mismatch, got", len(keys),
+			", expected: ", len(g.kvMap))
+	}
+	for _, key := range keys {
+		_, ok := g.kvMap[key]
+		if !ok {
+			t.Error("Unexpected key returned: ", key)
+		}
+	}
+
+}
