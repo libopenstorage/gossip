@@ -8,15 +8,18 @@ import (
 	"github.com/libopenstorage/gossip/api"
 )
 
+type NodeInfoMap map[api.NodeId]api.NodeInfo
+
 type GossipStoreImpl struct {
 	sync.Mutex
 	id    api.NodeId
-	kvMap map[api.StoreKey]map[api.NodeId]api.NodeInfo
+	kvMap map[api.StoreKey]NodeInfoMap
 }
 
 func NewGossipStore(id api.NodeId) api.GossipStore {
 	n := &GossipStoreImpl{}
-	n.kvMap = make(map[api.StoreKey]map[api.NodeId]api.NodeInfo)
+	n.kvMap = make(map[api.StoreKey]NodeInfoMap)
+	n.id = id
 	return n
 }
 
@@ -30,7 +33,7 @@ func (s *GossipStoreImpl) UpdateSelf(key api.StoreKey, val interface{}) {
 
 	nodeValue, ok := s.kvMap[key]
 	if !ok {
-		nodeValue = make(map[api.NodeId]api.NodeInfo)
+		nodeValue = make(NodeInfoMap)
 		s.kvMap[key] = nodeValue
 	}
 
@@ -51,7 +54,7 @@ func (s *GossipStoreImpl) GetStoreKeyValue(key api.StoreKey) api.NodeInfoList {
 	// we return an array, indexed by the node id.
 	// Find the max node id.
 	nodeInfos, ok := s.kvMap[key]
-	if !ok {
+	if !ok || len(nodeInfos) == 0 {
 		return api.NodeInfoList{List: nil}
 	}
 
@@ -65,7 +68,8 @@ func (s *GossipStoreImpl) GetStoreKeyValue(key api.StoreKey) api.NodeInfoList {
 		}
 	}
 
-	nodeInfoList := make([]api.NodeInfo, maxId)
+	// maxId + 1 because we have a zero-based indexing
+	nodeInfoList := make([]api.NodeInfo, maxId+1)
 	for id, _ := range nodeInfos {
 		if nodeInfos[id].Status == api.NODE_STATUS_INVALID {
 			continue
@@ -165,8 +169,30 @@ func (s *GossipStoreImpl) Diff(
 			}
 		}
 
-		diffNewNodes[key] = diffNewIds
-		selfNewNodes[key] = selfNewIds
+		if len(diffNewIds) > 0 {
+			diffNewNodes[key] = diffNewIds
+		}
+		if len(selfNewIds) > 0 {
+			selfNewNodes[key] = selfNewIds
+		}
+	}
+
+	// go over keys present with us but not in the meta info
+	for key, nodeInfoMap := range s.kvMap {
+		_, ok := d[key]
+		if ok {
+			// we have handled this case above
+			continue
+		}
+
+		// we do not have info about this key
+		newIds := make([]api.NodeId, 0)
+		for nodeId, _ := range nodeInfoMap {
+			if nodeInfoMap[nodeId].Status != api.NODE_STATUS_INVALID {
+				newIds = append(newIds, nodeId)
+			}
+		}
+		selfNewNodes[key] = newIds
 	}
 
 	return diffNewNodes, selfNewNodes
@@ -185,11 +211,13 @@ func (s *GossipStoreImpl) Subset(nodes api.StoreNodes) api.StoreDiff {
 			continue
 		}
 		// create a new map to hold the diff
-		nodeInfoMap := make(map[api.NodeId]api.NodeInfo)
+		nodeInfoMap := make(NodeInfoMap)
+	inner:
 		for _, id := range nodeIdList {
 			_, ok := selfNodeInfos[id]
 			if !ok {
 				log.Info("Id missing from store, id: ", id, " for key: ", key)
+				continue inner
 			}
 			nodeInfoMap[id] = selfNodeInfos[id]
 		}
@@ -213,7 +241,7 @@ func (s *GossipStoreImpl) Update(diff api.StoreDiff) {
 		selfValue, ok := s.kvMap[key]
 		if !ok {
 			// create a copy
-			nodeInfoMap := make(map[api.NodeId]api.NodeInfo)
+			nodeInfoMap := make(NodeInfoMap)
 			for id, _ := range newValue {
 				nodeInfoMap[id] = newValue[id]
 			}
