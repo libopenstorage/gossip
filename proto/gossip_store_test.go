@@ -676,8 +676,6 @@ func TestGossipStoreBlackBoxTests(t *testing.T) {
 			if diffNodeInfo.Id != nodeInfo.Id ||
 				diffNodeInfo.LastUpdateTs != nodeInfo.LastUpdateTs ||
 				diffNodeInfo.Status != nodeInfo.Status {
-				// FIXME/ganesh: Add check for value, it be
-				// implement == operator.
 				t.Error("After update mismatch, diff: ", diffNodeInfo,
 					", store: ", nodeInfo, "key: ", key)
 			}
