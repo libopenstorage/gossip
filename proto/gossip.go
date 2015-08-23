@@ -4,9 +4,6 @@ import (
 	"errors"
 	log "github.com/Sirupsen/logrus"
 	"math/rand"
-	"net"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -14,21 +11,9 @@ import (
 )
 
 const (
-	// XXX/gsangle: Should these come from some sort of config file?
-	CONN_HOST = "0.0.0.0"
-	CONN_PORT = "9002"
-	CONN_TYPE = "tcp"
-
 	// interval to gossip, may be should make it configurable ?
 	GOSSIP_INTERVAL = 2 * time.Minute
 )
-
-func connectionString(ip string) string {
-	if strings.Index(ip, ":") == -1 {
-		return ip + ":" + CONN_PORT
-	}
-	return ip
-}
 
 // Implements the UnreliableBroadcast interface
 type GossiperImpl struct {
@@ -124,10 +109,10 @@ func (g *GossiperImpl) GetNodes() []string {
 
 // getUpdatesFromPeer receives node data from the peer
 // for which the peer has more latest information available
-func (g *GossiperImpl) getUpdatesFromPeer(conn net.Conn) error {
+func (g *GossiperImpl) getUpdatesFromPeer(conn api.MessageChannel) error {
 
 	var newPeerData api.StoreDiff
-	err := rcvData(&newPeerData, conn)
+	err := conn.RcvData(&newPeerData)
 	if err != nil {
 		log.Error("Error fetching the latest peer data", err)
 		return err
@@ -140,26 +125,26 @@ func (g *GossiperImpl) getUpdatesFromPeer(conn net.Conn) error {
 
 // sendNodeMetaInfo sends a list of meta info for all
 // the nodes in the nodes's store to the peer
-func (g *GossiperImpl) sendNodeMetaInfo(conn net.Conn) error {
+func (g *GossiperImpl) sendNodeMetaInfo(conn api.MessageChannel) error {
 	msg := g.store.MetaInfo()
-	err := sendData(msg, conn)
+	err := conn.SendData(msg)
 	return err
 }
 
 // sendUpdatesToPeer sends the information about the given
 // nodes to the peer
-func (g *GossiperImpl) sendUpdatesToPeer(diff *api.StoreNodes, conn net.Conn) error {
+func (g *GossiperImpl) sendUpdatesToPeer(diff *api.StoreNodes,
+	conn api.MessageChannel) error {
 	dataToSend := g.store.Subset(*diff)
-	return sendData(dataToSend, conn)
+	return conn.SendData(dataToSend)
 }
 
-func (g *GossiperImpl) handleGossip(conn net.Conn) {
+func (g *GossiperImpl) handleGossip(conn api.MessageChannel) {
 	var peerMetaInfo api.StoreMetaInfo
 	err := error(nil)
 
 	// 1. Get the info about the node data that the sender has
-	// XXX FIXME : readPeerData must be passed using a pointer
-	err = rcvData(&peerMetaInfo, conn)
+	err = conn.RcvData(&peerMetaInfo)
 	if err != nil {
 		return
 	}
@@ -171,7 +156,7 @@ func (g *GossiperImpl) handleGossip(conn net.Conn) {
 
 	// 3. Send this list to the peer, and get the latest data
 	// for them
-	err = sendData(diffNew, conn)
+	err = conn.SendData(diffNew)
 	if err != nil {
 		log.Error("Error sending list of nodes to fetch: ", err)
 		return
@@ -193,24 +178,9 @@ func (g *GossiperImpl) handleGossip(conn net.Conn) {
 }
 
 func (g *GossiperImpl) receive_loop() {
-	l, err := net.Listen(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
-	if err != nil {
-		log.Println("Error listening:", err.Error())
-		os.Exit(1)
-	}
-	defer l.Close()
-
-	log.Println("Listening on " + CONN_HOST + ":" + CONN_PORT)
-
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			log.Println("Error accepting: ", err.Error())
-			os.Exit(1)
-		}
-		// Handle connections in a new goroutine.
-		go g.handleGossip(conn)
-	}
+	var handler api.OnMessageRcv = func(c api.MessageChannel) { g.handleGossip(c) }
+	c := NewRunnableMessageChannel(g.name, handler)
+	c.RunOnRcvData()
 }
 
 // send_loop periodically connects to a random peer
@@ -253,15 +223,15 @@ func (g *GossiperImpl) gossip() {
 		return
 	}
 
-	conn, err := net.Dial(CONN_TYPE, connectionString(peerNode))
-	if err != nil {
+	conn := NewMessageChannel(peerNode)
+	if conn == nil {
 		log.Error("Peer " + peerNode + " unavailable to gossip")
 		//XXX: FIXME : note that the peer is down
 		return
 	}
 
 	// send meta data info about the node to the peer
-	err = g.sendNodeMetaInfo(conn)
+	err := g.sendNodeMetaInfo(conn)
 	if err != nil {
 		log.Error("Failed to send meta info to the peer: ", err)
 		//XXX: FIXME : note that the peer is down
@@ -270,7 +240,7 @@ func (g *GossiperImpl) gossip() {
 
 	// get a list of requested nodes from the peer and
 	var diff api.StoreNodes
-	err = rcvData(&diff, conn)
+	err = conn.RcvData(&diff)
 	if err != nil {
 		log.Error("Failed to get request info to the peer: ", err)
 		//XXX: FIXME : note that the peer is down

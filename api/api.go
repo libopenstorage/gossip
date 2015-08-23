@@ -112,3 +112,25 @@ type Gossiper interface {
 	// added via AddNode
 	GetNodes() []string
 }
+
+// OnMessageRcv is a handler that is invoked when
+// message arrives on the message channel.
+type OnMessageRcv func(c MessageChannel)
+
+// MessageChanne defines an interface for sending and
+// receiving messages between peer nodes. It abstracts
+// the underlying mechanism used to exchange messages.
+type MessageChannel interface {
+	// SendData serialized the the message and sends it
+	// to peer. The data must implement json.Marshal
+	SendData(obj interface{}) error
+	// RcvData recieves data from the peer and unmarshals
+	// it into the given obj. obj must be a pointer to
+	// effect change and must implement json.Unmarshal
+	RcvData(obj interface{}) error
+	// RunOnRcvData loops in continously and runs a handler
+	// which is activated on receiving any data
+	RunOnRcvData()
+	// Close terminates the message channel.
+	Close()
+}
