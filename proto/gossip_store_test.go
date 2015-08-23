@@ -610,3 +610,77 @@ func TestGossipStoreGetStoreKeys(t *testing.T) {
 	}
 
 }
+
+func TestGossipStoreBlackBoxTests(t *testing.T) {
+	printTestInfo()
+
+	g1 := NewGossipStore(ID).(*GossipStoreImpl)
+	g2 := NewGossipStore(ID).(*GossipStoreImpl)
+
+	nodeLen := 3
+	keyList := []api.StoreKey{"key1", "key2", "key3", "key5"}
+	for i, key := range keyList {
+		nodeInfoMap := make(NodeInfoMap)
+		fillUpNodeInfoMap(nodeInfoMap, nodeLen)
+		if i%2 == 0 {
+			g1.kvMap[key] = nodeInfoMap
+		} else {
+			g2.kvMap[key] = nodeInfoMap
+		}
+	}
+
+	g1New, g2New := g2.Diff(g1.MetaInfo())
+	g1Subset := g1.Subset(g1New)
+	g2Subset := g2.Subset(g2New)
+
+	g1.Update(g2Subset)
+	g2.Update(g1Subset)
+
+	if len(g1.kvMap) != len(g2.kvMap) &&
+		len(g1.kvMap) != len(keyList) {
+		t.Error("States mismatch:g1\n", g1, "\ng2\n", g2)
+	}
+
+	store := g1.kvMap
+	diff := g2.kvMap
+
+	for key, nodeInfoMap := range store {
+		diffNodeInfoMap, ok := diff[key]
+		if !ok {
+			t.Error("Unexpected key in store after update: ", key)
+			continue
+		}
+
+		if len(diffNodeInfoMap) != len(nodeInfoMap) {
+			missingNodeId := make([]api.NodeId, 0)
+			for id, _ := range diffNodeInfoMap {
+				_, ok := nodeInfoMap[id]
+				if !ok {
+					missingNodeId = append(missingNodeId, id)
+				}
+			}
+			if len(missingNodeId) > 1 {
+				t.Error("Diff and store lengths mismatch, storelen: ",
+					len(nodeInfoMap), " diff len: ", len(diffNodeInfoMap),
+					" for key: ", key)
+				dumpNodeInfo(diffNodeInfoMap, "DIFF", t)
+				dumpNodeInfo(nodeInfoMap, "DIFF", t)
+			}
+		}
+
+		for id, nodeInfo := range nodeInfoMap {
+			diffNodeInfo, ok := diffNodeInfoMap[id]
+			if !ok {
+				t.Error("Store has unexpected node id: ", id)
+			}
+			if diffNodeInfo.Id != nodeInfo.Id ||
+				diffNodeInfo.LastUpdateTs != nodeInfo.LastUpdateTs ||
+				diffNodeInfo.Status != nodeInfo.Status {
+				// FIXME/ganesh: Add check for value, it be
+				// implement == operator.
+				t.Error("After update mismatch, diff: ", diffNodeInfo,
+					", store: ", nodeInfo, "key: ", key)
+			}
+		}
+	}
+}
