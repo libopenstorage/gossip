@@ -73,14 +73,15 @@ func (c *ConnObj) RunOnRcvData() {
 		connObj := &ConnObj{ip: c.ip, conn: tcpConn,
 			rcvHandler: c.rcvHandler}
 		connObj.rcvHandler(connObj)
-		tcpConn.Close()
+		connObj.Close()
 	}
 }
 
 func (c *ConnObj) Close() {
 	if c.listener != nil {
 		c.listener.Close()
-	} else {
+	}
+	if c.conn != nil {
 		c.conn.Close()
 	}
 }
