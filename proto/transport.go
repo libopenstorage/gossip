@@ -25,7 +25,7 @@ type ConnObj struct {
 	ip         string
 	rcvHandler api.OnMessageRcv
 	conn       net.Conn
-	done       chan bool
+	listener   net.Listener
 }
 
 func connectionString(ip string) string {
@@ -42,7 +42,7 @@ func NewMessageChannel(ip string) api.MessageChannel {
 		log.Error("Error connecting to ", ip, " : ", err)
 		return nil
 	}
-	return &ConnObj{conn: c, done: nil}
+	return &ConnObj{conn: c, listener: nil}
 }
 
 func NewRunnableMessageChannel(addr string,
@@ -60,31 +60,28 @@ func (c *ConnObj) RunOnRcvData() {
 		log.Println("Error listening: ", err.Error())
 		os.Exit(1)
 	}
-	defer l.Close()
-
-	c.done = make(chan bool)
-	log.Println("Listening on: " + c.ip)
+	c.listener = l
+	defer c.listener.Close()
 
 	for {
-		select {
-		case <-c.done:
+		log.Println("Listening on: " + c.ip)
+		tcpConn, err := l.Accept()
+		if err != nil {
+			log.Println("Error accepting: ", err)
 			return
-		default:
-			tcpConn, err := l.Accept()
-			if err != nil {
-				log.Println("Error accepting: ", err)
-				return
-			}
-			connObj := &ConnObj{ip: c.ip, conn: tcpConn, done: c.done,
-				rcvHandler: c.rcvHandler}
-			connObj.rcvHandler(connObj)
 		}
+		connObj := &ConnObj{ip: c.ip, conn: tcpConn,
+			rcvHandler: c.rcvHandler}
+		connObj.rcvHandler(connObj)
+		tcpConn.Close()
 	}
 }
 
 func (c *ConnObj) Close() {
-	if c.done != nil {
-		c.done <- true
+	if c.listener != nil {
+		c.listener.Close()
+	} else {
+		c.conn.Close()
 	}
 }
 
