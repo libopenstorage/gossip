@@ -12,7 +12,7 @@ import (
 
 const (
 	// interval to gossip, may be should make it configurable ?
-	GOSSIP_INTERVAL = 2 * time.Minute
+	DEFAULT_GOSSIP_INTERVAL = 2 * time.Minute
 )
 
 // Implements the UnreliableBroadcast interface
@@ -45,16 +45,17 @@ func NewGossiper(ip string, selfNodeId api.NodeId) api.Gossiper {
 }
 
 func (g *GossiperImpl) init(ip string, selfNodeId api.NodeId) api.Gossiper {
-	g.id = selfNodeId
+	g.Init(selfNodeId)
 	g.name = ip
-	g.nodes = make([]string, 10) // random initial capacity
+	g.nodes = make([]string, 0)
 	g.done = make(chan bool, 1)
+	g.gossipInterval = DEFAULT_GOSSIP_INTERVAL
 	rand.Seed(time.Now().UnixNano())
-	err := g.AddNode(ip)
-	if err != nil {
-		log.Error("Failed to add init node to store")
-		return nil
-	}
+
+	// start gossiping
+	go g.send_loop()
+	go g.receive_loop()
+
 	return g
 }
 
@@ -118,7 +119,7 @@ func (g *GossiperImpl) getUpdatesFromPeer(conn api.MessageChannel) error {
 		return err
 	}
 
-	g.store.Update(newPeerData)
+	g.Update(newPeerData)
 
 	return nil
 }
@@ -126,8 +127,8 @@ func (g *GossiperImpl) getUpdatesFromPeer(conn api.MessageChannel) error {
 // sendNodeMetaInfo sends a list of meta info for all
 // the nodes in the nodes's store to the peer
 func (g *GossiperImpl) sendNodeMetaInfo(conn api.MessageChannel) error {
-	msg := g.store.MetaInfo()
-	err := conn.SendData(msg)
+	msg := g.MetaInfo()
+	err := conn.SendData(&msg)
 	return err
 }
 
@@ -135,8 +136,8 @@ func (g *GossiperImpl) sendNodeMetaInfo(conn api.MessageChannel) error {
 // nodes to the peer
 func (g *GossiperImpl) sendUpdatesToPeer(diff *api.StoreNodes,
 	conn api.MessageChannel) error {
-	dataToSend := g.store.Subset(*diff)
-	return conn.SendData(dataToSend)
+	dataToSend := g.Subset(*diff)
+	return conn.SendData(&dataToSend)
 }
 
 func (g *GossiperImpl) handleGossip(conn api.MessageChannel) {
@@ -152,7 +153,7 @@ func (g *GossiperImpl) handleGossip(conn api.MessageChannel) {
 	// 2. Compare with current data that this node has and get
 	//    the names of the nodes for which this node has stale info
 	//    as compared to the sender
-	diffNew, selfNew := g.store.Diff(peerMetaInfo)
+	diffNew, selfNew := g.Diff(peerMetaInfo)
 
 	// 3. Send this list to the peer, and get the latest data
 	// for them
@@ -180,21 +181,22 @@ func (g *GossiperImpl) handleGossip(conn api.MessageChannel) {
 func (g *GossiperImpl) receive_loop() {
 	var handler api.OnMessageRcv = func(c api.MessageChannel) { g.handleGossip(c) }
 	c := NewRunnableMessageChannel(g.name, handler)
-	c.RunOnRcvData()
+	go c.RunOnRcvData()
+	c.Close()
 }
 
 // send_loop periodically connects to a random peer
 // and gossips about the state of the cluster
 func (g *GossiperImpl) send_loop() {
-	tick := time.Tick(GOSSIP_INTERVAL)
+	tick := time.Tick(g.gossipInterval)
 	for {
 		select {
 		case <-tick:
+			log.Info("Starting gossip")
 			g.gossip()
 		case <-g.done:
 			log.Info("send_loop now exiting")
-		default:
-			log.Error("send_loop default!")
+			return
 		}
 	}
 
@@ -207,7 +209,7 @@ func (g *GossiperImpl) selectGossipPeer() string {
 	defer g.nodesLock.Unlock()
 
 	nodesLen := len(g.nodes)
-	if nodesLen != 0 {
+	if nodesLen == 0 {
 		log.Info("No peers to gossip with, returning")
 		return ""
 	}

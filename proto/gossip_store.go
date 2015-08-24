@@ -18,13 +18,17 @@ type GossipStoreImpl struct {
 
 func NewGossipStore(id api.NodeId) api.GossipStore {
 	n := &GossipStoreImpl{}
-	n.kvMap = make(map[api.StoreKey]NodeInfoMap)
-	n.id = id
+	n.Init(id)
 	return n
 }
 
 func (s *GossipStoreImpl) NodeId() api.NodeId {
 	return s.id
+}
+
+func (s *GossipStoreImpl) Init(id api.NodeId) {
+	s.kvMap = make(map[api.StoreKey]NodeInfoMap)
+	s.id = id
 }
 
 func (s *GossipStoreImpl) UpdateSelf(key api.StoreKey, val interface{}) {

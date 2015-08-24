@@ -11,6 +11,8 @@ type TestData struct {
 }
 
 func TestTransportSendAndRcvData(t *testing.T) {
+	printTestInfo()
+	time.Sleep(10 * time.Second)
 	data1 := &TestData{}
 	data2 := &TestData{}
 
@@ -55,6 +57,8 @@ func TestTransportSendAndRcvData(t *testing.T) {
 }
 
 func TestTransportFailures(t *testing.T) {
+	printTestInfo()
+	time.Sleep(10 * time.Second)
 	data1 := &TestData{}
 	data2 := &TestData{}
 
@@ -123,6 +127,8 @@ func TestTransportFailures(t *testing.T) {
 }
 
 func TestTransportTwoWayExchange(t *testing.T) {
+	printTestInfo()
+	time.Sleep(10 * time.Second)
 	data1 := &TestData{}
 	data2 := &TestData{}
 	data3 := &TestData{}

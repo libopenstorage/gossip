@@ -3,7 +3,7 @@ package proto
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
+	"encoding/gob"
 	log "github.com/Sirupsen/logrus"
 	"io"
 	"net"
@@ -106,13 +106,16 @@ func (c *ConnObj) write(buf []byte) error {
 // it was successful, error otherwise
 func (c *ConnObj) SendData(obj interface{}) error {
 	err := error(nil)
-	buf, err := json.Marshal(obj)
+
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err = enc.Encode(obj)
 	if err != nil {
 		log.Error("Failed to serialize message", err)
 		return err
 	}
 
-	var header uint64 = uint64(len(buf))
+	var header uint64 = uint64(buf.Len())
 	headerBuf := make([]byte, HEADER_LENGTH)
 	binary.LittleEndian.PutUint64(headerBuf[:], header)
 	// first send out the header
@@ -123,7 +126,7 @@ func (c *ConnObj) SendData(obj interface{}) error {
 	}
 
 	// now send the actual data
-	err = c.write(buf)
+	err = c.write(buf.Bytes())
 	if err != nil {
 		log.Error("Writing header failed with error: ", err)
 		return err
@@ -163,7 +166,8 @@ func (c *ConnObj) RcvData(msg interface{}) error {
 			return err
 		}
 
-		err = json.Unmarshal(msgBuffer.Bytes(), msg)
+		dec := gob.NewDecoder(msgBuffer)
+		err = dec.Decode(msg)
 		if err != nil {
 			log.Warn("Received bad packet:", err)
 			return err
