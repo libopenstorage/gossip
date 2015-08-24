@@ -73,7 +73,8 @@ func TestGossipStoreUpdateSelf(t *testing.T) {
 		if !ok {
 			t.Error("UpdateSelf adding new id failed, nodeMap: ", nodeValue)
 		}
-		if nodeInfo.Value != value {
+		if nodeInfo.Value != value &&
+			nodeInfo.Id != ID {
 			t.Error("UpdateSelf failed, got value: ", nodeInfo.Value,
 				" got: ", value)
 		}
@@ -87,9 +88,9 @@ func TestGossipStoreUpdateSelf(t *testing.T) {
 	if !ok {
 		t.Error("UpdateSelf adding new id failed, nodeMap: ", nodeValue)
 	}
-	if nodeInfo.Value != value {
-		t.Error("UpdateSelf failed, got value: ", nodeInfo.Value,
-			" got: ", value)
+	if nodeInfo.Value != value || nodeInfo.Id != ID {
+		t.Error("UpdateSelf failed, got value: ", nodeInfo,
+			" got: ", value, " expected id: ", ID)
 	}
 
 	// key present id present
@@ -102,9 +103,9 @@ func TestGossipStoreUpdateSelf(t *testing.T) {
 		t.Error("UpdateSelf failed to update timestamp, prev: ", prevTs,
 			" got: ", nodeInfo.LastUpdateTs)
 	}
-	if nodeInfo.Value != value {
-		t.Error("UpdateSelf failed, got value: ", nodeInfo.Value,
-			" got: ", value)
+	if nodeInfo.Value != value || nodeInfo.Id != ID {
+		t.Error("UpdateSelf failed, got value: ", nodeInfo,
+			" got: ", value, " expected id: ", ID)
 	}
 
 }

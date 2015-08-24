@@ -141,11 +141,13 @@ func (g *GossiperImpl) sendUpdatesToPeer(diff *api.StoreNodes,
 }
 
 func (g *GossiperImpl) handleGossip(conn api.MessageChannel) {
+	log.Info(g.id, " servicing gossip request")
 	var peerMetaInfo api.StoreMetaInfo
 	err := error(nil)
 
 	// 1. Get the info about the node data that the sender has
 	err = conn.RcvData(&peerMetaInfo)
+	log.Info(g.id, " Got meta data: \n", peerMetaInfo)
 	if err != nil {
 		return
 	}
@@ -154,6 +156,7 @@ func (g *GossiperImpl) handleGossip(conn api.MessageChannel) {
 	//    the names of the nodes for which this node has stale info
 	//    as compared to the sender
 	diffNew, selfNew := g.Diff(peerMetaInfo)
+	log.Info(g.id, " The diff is: diffNew: \n", diffNew, " \nselfNew:\n", selfNew)
 
 	// 3. Send this list to the peer, and get the latest data
 	// for them

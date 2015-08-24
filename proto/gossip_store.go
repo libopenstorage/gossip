@@ -41,12 +41,8 @@ func (s *GossipStoreImpl) UpdateSelf(key api.StoreKey, val interface{}) {
 		s.kvMap[key] = nodeValue
 	}
 
-	_, ok = nodeValue[s.id]
-	if !ok {
-		nodeValue[s.id] = api.NodeInfo{Id: s.id}
-	}
-
-	nodeValue[s.id] = api.NodeInfo{Value: val,
+	nodeValue[s.id] = api.NodeInfo{Id: s.id,
+		Value:        val,
 		LastUpdateTs: time.Now(),
 		Status:       api.NODE_STATUS_UP}
 }
