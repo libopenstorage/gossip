@@ -73,7 +73,7 @@ func TestGossipStoreUpdateSelf(t *testing.T) {
 		if !ok {
 			t.Error("UpdateSelf adding new id failed, nodeMap: ", nodeValue)
 		}
-		if nodeInfo.Value != value &&
+		if nodeInfo.Value != value ||
 			nodeInfo.Id != ID {
 			t.Error("UpdateSelf failed, got value: ", nodeInfo.Value,
 				" got: ", value)

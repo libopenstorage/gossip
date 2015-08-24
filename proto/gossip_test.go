@@ -2,6 +2,8 @@ package proto
 
 import (
 	"github.com/libopenstorage/gossip/api"
+	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -85,35 +87,7 @@ func TestGossiperMisc(t *testing.T) {
 	g.Stop()
 }
 
-func TestGossiperSimpleGossip(t *testing.T) {
-	printTestInfo()
-	g1 := NewGossiper("0.0.0.0:9052", 1)
-	g2 := NewGossiper("0.0.0.0:9072", 2)
-
-	g1.SetGossipInterval(1500 * time.Millisecond)
-	g2.SetGossipInterval(2400 * time.Millisecond)
-
-	err := g1.AddNode("0.0.0.0:9072")
-	if err != nil {
-		t.Error("Unexpected error adding node to g1: ", err)
-	}
-
-	err = g2.AddNode("0.0.0.0:9052")
-	if err != nil {
-		t.Error("Unexpected error adding node to g2: ", err)
-	}
-
-	// let the nodes gossip about nothing ;)
-	time.Sleep(2 * time.Second)
-
-	g1.UpdateSelf("g1key", "somevalue")
-	g2.UpdateSelf("g2key", "g2value")
-
-	time.Sleep(10 * time.Second)
-
-	g1.Stop()
-	g2.Stop()
-
+func verifyGossiperEquality(g1 api.Gossiper, g2 api.Gossiper, t *testing.T) {
 	// check for the equality
 	g1Keys := g1.GetStoreKeys()
 	g2Keys := g2.GetStoreKeys()
@@ -140,4 +114,117 @@ func TestGossiperSimpleGossip(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{"0.0.0.0:9152", "0.0.0.0:9153",
+		"0.0.0.0:9154", "0.0.0.0:9155",
+		"0.0.0.0:9156", "0.0.0.0:9157",
+		"0.0.0.0:9158", "0.0.0.0:9159",
+		"0.0.0.0:9160", "0.0.0.0:9161"}
+
+	rand.Seed(time.Now().UnixNano())
+	gossipers := make(map[string]api.Gossiper)
+	for i, nodeId := range nodes {
+		g := NewGossiper(nodeId, api.NodeId(i))
+
+		g.SetGossipInterval(time.Duration(1500+rand.Intn(200)) * time.Millisecond)
+		// add one neighbor and 2 random peers
+		if i < len(nodes)-1 {
+			err := g.AddNode(nodes[i+1])
+			if err != nil {
+				t.Error("Unexpected error adding node to id: ", nodeId,
+					" node: ", nodes[i+1])
+			}
+		} else {
+			err := g.AddNode(nodes[0])
+			if err != nil {
+				t.Error("Unexpected error adding node to id: ", nodeId,
+					" node: ", nodes[0])
+			}
+		}
+
+		// to this gossiper, add two random peers
+		for count := 0; count < 2; {
+			randId := rand.Intn(len(nodes))
+			if randId == i {
+				continue
+			}
+
+			err := g.AddNode(nodes[randId])
+			if err != nil {
+				t.Log("Unexpected error adding node to id: ", nodeId,
+					" node: ", nodes[randId], " err: ", err)
+			} else {
+				count++
+			}
+		}
+		gossipers[nodeId] = g
+		time.Sleep(2000 * time.Millisecond)
+	}
+
+	updateFunc := func(g api.Gossiper, id string, max int, t *testing.T) {
+		for i := 0; i < max; i++ {
+			t.Log("Updting data for ", id)
+			g.UpdateSelf("sameKey", strconv.Itoa(i))
+			g.UpdateSelf(api.StoreKey(strconv.Itoa(int(g.NodeId()))), strconv.Itoa(i*i))
+			time.Sleep(g.GossipInterval() + time.Duration(rand.Intn(100)))
+		}
+	}
+
+	for id, g := range gossipers {
+		go updateFunc(g, id, 10, t)
+	}
+
+	// Max duration for update is 1500 + 200 + 100 per update * 10
+	// = 1800 mil * 10 = 18000 mil.
+	// To add go fork thread, 2000 mil on top.
+	// Let gossip go on for another 10 seconds, after which it must settle
+	time.Sleep(1 * time.Minute)
+
+	// verify all of them are same
+	for i := 1; i < len(nodes); i++ {
+		t.Log("Checking equality of ", nodes[0], " and ", nodes[i])
+		verifyGossiperEquality(gossipers[nodes[0]], gossipers[nodes[i]], t)
+	}
+
+	// start another update round, however, we will shut down soem machines
+	// in between
+	for id, g := range gossipers {
+		go updateFunc(g, id, 10, t)
+	}
+
+	shutdownNodes := make(map[int]bool)
+	for {
+		randId := rand.Intn(len(nodes))
+		if randId == 0 {
+			continue
+		}
+		_, ok := shutdownNodes[randId]
+		if ok == false {
+			shutdownNodes[randId] = true
+			gossipers[nodes[randId]].Stop()
+			if len(shutdownNodes) == 3 {
+				break
+			}
+		}
+	}
+
+	time.Sleep(1 * time.Minute)
+	// verify all of them are same
+	for i := 1; i < len(nodes); i++ {
+		_, ok := shutdownNodes[i]
+		if ok {
+			continue
+		}
+		t.Log("Checking equality of ", nodes[0], " and ", nodes[i])
+		verifyGossiperEquality(gossipers[nodes[0]], gossipers[nodes[i]], t)
+	}
+
+	for i := 1; i < len(nodes); i++ {
+		gossipers[nodes[i]].Stop()
+	}
+
 }

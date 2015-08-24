@@ -27,9 +27,6 @@ type GossiperImpl struct {
 	// to signal exit gossip loop
 	done           chan bool
 	gossipInterval time.Duration
-
-	// the actual in-memory state
-	store api.GossipStore
 }
 
 // Utility methods
@@ -60,7 +57,12 @@ func (g *GossiperImpl) init(ip string, selfNodeId api.NodeId) api.Gossiper {
 }
 
 func (g *GossiperImpl) Stop() {
-	g.done <- true
+	// one for send loop, one for receive loop
+	if g.done != nil {
+		g.done <- true
+		g.done <- true
+		g.done = nil
+	}
 }
 
 func (g *GossiperImpl) SetGossipInterval(t time.Duration) {
@@ -185,7 +187,10 @@ func (g *GossiperImpl) receive_loop() {
 	var handler api.OnMessageRcv = func(c api.MessageChannel) { g.handleGossip(c) }
 	c := NewRunnableMessageChannel(g.name, handler)
 	go c.RunOnRcvData()
+	// block waiting for the done signal
+	<-g.done
 	c.Close()
+	log.Info("Stopped receive loop")
 }
 
 // send_loop periodically connects to a random peer
