@@ -110,6 +110,45 @@ func TestGossipStoreUpdateSelf(t *testing.T) {
 
 }
 
+func TestGossipStoreUpdateNodeStatuses(t *testing.T) {
+	printTestInfo()
+
+	g := NewGossipStore(ID).(*GossipStoreImpl)
+
+	nodeLen := 10
+	keyList := []api.StoreKey{"key1", "key2", "key3"}
+	for _, key := range keyList {
+		g.kvMap[key] = make(NodeInfoMap)
+		fillUpNodeInfoMap(g.kvMap[key], nodeLen)
+	}
+
+	time.Sleep(3 * time.Second)
+	g.UpdateNodeStatuses(6 * time.Second)
+	for _, key := range keyList {
+		nodeMapInfo := g.kvMap[key]
+		for _, nodeInfo := range nodeMapInfo {
+			if nodeInfo.Status == api.NODE_STATUS_DOWN {
+				t.Error("Node wrongly marked down: ", nodeInfo,
+					" for key: ", key)
+			}
+		}
+	}
+
+	time.Sleep(3 * time.Second)
+	g.UpdateNodeStatuses(5 * time.Second)
+	for _, key := range keyList {
+		nodeMapInfo := g.kvMap[key]
+		for id, nodeInfo := range nodeMapInfo {
+			if nodeInfo.Status != api.NODE_STATUS_DOWN &&
+				id != ID {
+				t.Error("Node wrongly marked up: ", nodeInfo,
+					" for key: ", key)
+			}
+		}
+	}
+
+}
+
 func TestGossipStoreGetStoreKeyValue(t *testing.T) {
 	printTestInfo()
 

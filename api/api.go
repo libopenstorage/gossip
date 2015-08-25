@@ -88,6 +88,10 @@ type GossipStore interface {
 	// given meta info, and second list is the names
 	// of nodes for which the current data is newer
 	Diff(d StoreMetaInfo) (StoreNodes, StoreNodes)
+
+	// UpdateNodeStatuses updates the statuses of
+	// the nodes this node has information about
+	UpdateNodeStatuses(time.Duration)
 }
 
 type Gossiper interface {
@@ -98,6 +102,16 @@ type Gossiper interface {
 	SetGossipInterval(time.Duration)
 	// GossipInterval gets the gossip interval
 	GossipInterval() time.Duration
+
+	// SetNodeDeathInterval sets the duration which is used
+	// to determine if peer node is alive. If the last update
+	// timestamp of peer is older than this interval,
+	// then we declare the node to be down
+	SetNodeDeathInterval(t time.Duration)
+
+	// NodeDeathInterval returns the duration which is
+	// used to determine if the peer node is alive.
+	NodeDeathInterval() time.Duration
 
 	// Stop stops the gossiping
 	Stop()

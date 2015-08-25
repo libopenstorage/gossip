@@ -80,6 +80,19 @@ func TestGossiperMisc(t *testing.T) {
 		t.Error("Set interval and get interval differ, got: ", gossipIntvl)
 	}
 
+	// get the default value
+	deathIntvl := g.NodeDeathInterval()
+	if deathIntvl == 0 {
+		t.Error("Default death interval set to zero")
+	}
+
+	deathDuration := 1 * time.Second
+	g.SetNodeDeathInterval(deathDuration)
+	deathIntvl = g.NodeDeathInterval()
+	if deathIntvl != deathDuration {
+		t.Error("Set death interval and get interval differ, got: ", deathIntvl)
+	}
+
 	// stay up for more than gossip interval and check
 	// that we don't die because there is no one to gossip
 	time.Sleep(2 * gossipDuration)
@@ -221,6 +234,19 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 		}
 		t.Log("Checking equality of ", nodes[0], " and ", nodes[i])
 		verifyGossiperEquality(gossipers[nodes[0]], gossipers[nodes[i]], t)
+
+		g := gossipers[nodes[i]]
+		keys := g.GetStoreKeys()
+		for _, key := range keys {
+			values := g.GetStoreKeyValue(key)
+
+			for j, nodeInfo := range values.List {
+				_, ok := shutdownNodes[j]
+				if ok && nodeInfo.Status == api.NODE_STATUS_UP {
+					t.Error("Node not marked down: ", nodeInfo, " for node: ", nodes[i])
+				}
+			}
+		}
 	}
 
 	for i := 1; i < len(nodes); i++ {

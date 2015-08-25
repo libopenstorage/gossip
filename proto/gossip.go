@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	// interval to gossip, may be should make it configurable ?
-	DEFAULT_GOSSIP_INTERVAL = 2 * time.Minute
+	DEFAULT_GOSSIP_INTERVAL     = 10 * time.Second
+	DEFAULT_NODE_DEATH_INTERVAL = 30 * time.Second
 )
 
 // Implements the UnreliableBroadcast interface
@@ -25,8 +25,9 @@ type GossiperImpl struct {
 	name      string
 	nodesLock sync.Mutex
 	// to signal exit gossip loop
-	done           chan bool
-	gossipInterval time.Duration
+	done              chan bool
+	gossipInterval    time.Duration
+	nodeDeathInterval time.Duration
 }
 
 // Utility methods
@@ -47,18 +48,21 @@ func (g *GossiperImpl) init(ip string, selfNodeId api.NodeId) api.Gossiper {
 	g.nodes = make([]string, 0)
 	g.done = make(chan bool, 1)
 	g.gossipInterval = DEFAULT_GOSSIP_INTERVAL
+	g.nodeDeathInterval = DEFAULT_NODE_DEATH_INTERVAL
 	rand.Seed(time.Now().UnixNano())
 
 	// start gossiping
-	go g.send_loop()
-	go g.receive_loop()
+	go g.sendLoop()
+	go g.receiveLoop()
+	go g.updateStatusLoop()
 
 	return g
 }
 
 func (g *GossiperImpl) Stop() {
-	// one for send loop, one for receive loop
+	// one for send loop, one for receive loop, one for update loop
 	if g.done != nil {
+		g.done <- true
 		g.done <- true
 		g.done <- true
 		g.done = nil
@@ -71,6 +75,14 @@ func (g *GossiperImpl) SetGossipInterval(t time.Duration) {
 
 func (g *GossiperImpl) GossipInterval() time.Duration {
 	return g.gossipInterval
+}
+
+func (g *GossiperImpl) SetNodeDeathInterval(t time.Duration) {
+	g.nodeDeathInterval = t
+}
+
+func (g *GossiperImpl) NodeDeathInterval() time.Duration {
+	return g.nodeDeathInterval
 }
 
 func (g *GossiperImpl) AddNode(ip string) error {
@@ -183,7 +195,7 @@ func (g *GossiperImpl) handleGossip(conn api.MessageChannel) {
 	}
 }
 
-func (g *GossiperImpl) receive_loop() {
+func (g *GossiperImpl) receiveLoop() {
 	var handler api.OnMessageRcv = func(c api.MessageChannel) { g.handleGossip(c) }
 	c := NewRunnableMessageChannel(g.name, handler)
 	go c.RunOnRcvData()
@@ -193,9 +205,9 @@ func (g *GossiperImpl) receive_loop() {
 	log.Info("Stopped receive loop")
 }
 
-// send_loop periodically connects to a random peer
+// sendLoop periodically connects to a random peer
 // and gossips about the state of the cluster
-func (g *GossiperImpl) send_loop() {
+func (g *GossiperImpl) sendLoop() {
 	tick := time.Tick(g.gossipInterval)
 	for {
 		select {
@@ -203,11 +215,27 @@ func (g *GossiperImpl) send_loop() {
 			log.Info("Starting gossip")
 			g.gossip()
 		case <-g.done:
-			log.Info("send_loop now exiting")
+			log.Info("sendLoop now exiting")
 			return
 		}
 	}
+}
 
+// updateStatusLoop updates the status of each node
+// depending on when it was last updated
+func (g *GossiperImpl) updateStatusLoop() {
+	tick := time.Tick(g.gossipInterval)
+	for {
+		select {
+		case <-tick:
+			log.Info("Starting to update node statuses")
+			g.UpdateNodeStatuses(g.nodeDeathInterval)
+			log.Info("Finished updating node statuses")
+		case <-g.done:
+			log.Info("updateStatusLoop now exiting")
+			return
+		}
+	}
 }
 
 // selectGossipPeer randomly selects a peer

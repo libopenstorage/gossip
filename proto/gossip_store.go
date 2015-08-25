@@ -256,3 +256,20 @@ func (s *GossipStoreImpl) Update(diff api.StoreDiff) {
 		}
 	}
 }
+
+func (s *GossipStoreImpl) UpdateNodeStatuses(d time.Duration) {
+	s.Lock()
+	defer s.Unlock()
+
+	for _, nodeValue := range s.kvMap {
+		for id, _ := range nodeValue {
+			if nodeValue[id].Status != api.NODE_STATUS_INVALID &&
+				id != s.id &&
+				(time.Now().Sub(nodeValue[id].LastUpdateTs)) >= d {
+				nodeInfo := nodeValue[id]
+				nodeInfo.Status = api.NODE_STATUS_DOWN
+				nodeValue[id] = nodeInfo
+			}
+		}
+	}
+}
