@@ -11,7 +11,7 @@ g := NewGossiper("<ip>:<port>", <unique node id>)
 g.AddNode("<peer_ip>:<peer_port>")
 ...
 // update self values 
-g.UpdateSelfValue("<some_key>", "<any_value>")
+g.UpdateSelf("<some_key>", "<any_value>")
 ```
 
 These values are exchanged using the gossip protocol between the configured
@@ -20,7 +20,7 @@ peers.
 ```
 // Get the current view of the world
 store_keys = g.GetStoreKeys()
-for _, key := range store_keys {
+for _, key := range store_keys.List {
 	node_info_list := g.GetStoreKeyValue(key)
 	// node_info_list is an array, to be indexed
 	// by node id. Valid nodes can be identified

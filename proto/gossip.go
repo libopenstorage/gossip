@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	DEFAULT_GOSSIP_INTERVAL     = 10 * time.Second
-	DEFAULT_NODE_DEATH_INTERVAL = 30 * time.Second
+	DEFAULT_GOSSIP_INTERVAL     = 2 * time.Second
+	DEFAULT_NODE_DEATH_INTERVAL = 5 * DEFAULT_GOSSIP_INTERVAL
 )
 
 // Implements the UnreliableBroadcast interface
