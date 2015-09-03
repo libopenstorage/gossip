@@ -19,13 +19,15 @@ peers.
 
 ```
 // Get the current view of the world
-store_keys = g.GetStoreKeys()
-for _, key := range store_keys.List {
-	node_info_list := g.GetStoreKeyValue(key)
-	// node_info_list is an array, to be indexed
-	// by node id. Valid nodes can be identified
-	// by the following:
-	//    node_info.Status != api.NODE_STATUS_INVALID
+storeKeys = g.GetStoreKeys()
+for _, key := range storeKeys.List {
+	nodeInfoList := g.GetStoreKeyValue(key)
+	for _,  nodeInfo := nodeInfoList.List {
+		// node_info_list is an array, to be indexed
+		// by node id. Valid nodes can be identified
+		// by the following:
+		//    node_info.Status != types.NODE_STATUS_INVALID
+	}
 }
 
 // Stop gossiping
