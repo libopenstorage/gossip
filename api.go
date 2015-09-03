@@ -84,7 +84,7 @@ type Gossiper interface {
 
 // New returns an initialized Gossip node
 // which identifies itself with the given ip
-func NewGossiper(ip string, selfNodeId types.NodeId) Gossiper {
+func New(ip string, selfNodeId types.NodeId) Gossiper {
 	g := new(proto.GossiperImpl)
 	g.Init(ip, selfNodeId)
 	return g
