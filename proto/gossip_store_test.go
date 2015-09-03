@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/libopenstorage/gossip/api"
+	"github.com/libopenstorage/gossip/types"
 )
 
 const (
-	CPU    string     = "CPU"
-	MEMORY string     = "MEMORY"
-	ID     api.NodeId = 4
+	CPU    string       = "CPU"
+	MEMORY string       = "MEMORY"
+	ID     types.NodeId = 4
 )
 
 func printTestInfo() {
@@ -30,12 +30,12 @@ func flipCoin() bool {
 	return false
 }
 
-func fillUpNodeInfo(node *api.NodeInfo, i int) {
-	node.Id = api.NodeId(i)
+func fillUpNodeInfo(node *types.NodeInfo, i int) {
+	node.Id = types.NodeId(i)
 	node.LastUpdateTs = time.Now()
-	node.Status = api.NODE_STATUS_UP
+	node.Status = types.NODE_STATUS_UP
 
-	value := make(map[string]api.NodeId)
+	value := make(map[string]types.NodeId)
 	value[CPU] = node.Id
 	value[MEMORY] = node.Id
 	node.Value = value
@@ -43,7 +43,7 @@ func fillUpNodeInfo(node *api.NodeInfo, i int) {
 
 func fillUpNodeInfoMap(nodes NodeInfoMap, numOfNodes int) {
 	for i := 0; i < numOfNodes; i++ {
-		var node api.NodeInfo
+		var node types.NodeInfo
 		fillUpNodeInfo(&node, i)
 		nodes[node.Id] = node
 	}
@@ -52,7 +52,7 @@ func fillUpNodeInfoMap(nodes NodeInfoMap, numOfNodes int) {
 func TestGossipStoreUpdateSelf(t *testing.T) {
 	printTestInfo()
 	// emtpy store
-	g := NewGossipStore(ID).(*GossipStoreImpl)
+	g := NewGossipStore(ID)
 
 	id := g.NodeId()
 	if id != ID {
@@ -61,7 +61,7 @@ func TestGossipStoreUpdateSelf(t *testing.T) {
 	}
 
 	value := "string"
-	key1 := api.StoreKey("key1")
+	key1 := types.StoreKey("key1")
 	// key absent
 	g.UpdateSelf(key1, value)
 	nodeValue, ok := g.kvMap[key1]
@@ -113,10 +113,10 @@ func TestGossipStoreUpdateSelf(t *testing.T) {
 func TestGossipStoreUpdateNodeStatuses(t *testing.T) {
 	printTestInfo()
 
-	g := NewGossipStore(ID).(*GossipStoreImpl)
+	g := NewGossipStore(ID)
 
 	nodeLen := 10
-	keyList := []api.StoreKey{"key1", "key2", "key3"}
+	keyList := []types.StoreKey{"key1", "key2", "key3"}
 	for _, key := range keyList {
 		g.kvMap[key] = make(NodeInfoMap)
 		fillUpNodeInfoMap(g.kvMap[key], nodeLen)
@@ -127,7 +127,7 @@ func TestGossipStoreUpdateNodeStatuses(t *testing.T) {
 	for _, key := range keyList {
 		nodeMapInfo := g.kvMap[key]
 		for _, nodeInfo := range nodeMapInfo {
-			if nodeInfo.Status == api.NODE_STATUS_DOWN {
+			if nodeInfo.Status == types.NODE_STATUS_DOWN {
 				t.Error("Node wrongly marked down: ", nodeInfo,
 					" for key: ", key)
 			}
@@ -139,7 +139,7 @@ func TestGossipStoreUpdateNodeStatuses(t *testing.T) {
 	for _, key := range keyList {
 		nodeMapInfo := g.kvMap[key]
 		for id, nodeInfo := range nodeMapInfo {
-			if nodeInfo.Status != api.NODE_STATUS_DOWN &&
+			if nodeInfo.Status != types.NODE_STATUS_DOWN &&
 				id != ID {
 				t.Error("Node wrongly marked up: ", nodeInfo,
 					" for key: ", key)
@@ -154,9 +154,9 @@ func TestGossipStoreGetStoreKeyValue(t *testing.T) {
 
 	// Case: emtpy store
 	// Case: key absent
-	g := NewGossipStore(ID).(*GossipStoreImpl)
+	g := NewGossipStore(ID)
 
-	keyList := []api.StoreKey{"key1", "key2"}
+	keyList := []types.StoreKey{"key1", "key2"}
 
 	nodeInfoList := g.GetStoreKeyValue(keyList[0])
 	if len(nodeInfoList.List) != 0 {
@@ -186,16 +186,16 @@ func TestGossipStoreGetStoreKeyValue(t *testing.T) {
 	}
 	for i := 0; i < len(nodeInfoList.List); i++ {
 		if i%2 == 0 {
-			if nodeInfoList.List[i].Status != api.NODE_STATUS_INVALID {
+			if nodeInfoList.List[i].Status != types.NODE_STATUS_INVALID {
 				t.Error("Invalid node expected, got: ", nodeInfoList.List[i])
 			}
 			continue
 		}
-		infoMap := nodeInfoList.List[i].Value.(map[string]api.NodeId)
-		if nodeInfoList.List[i].Id != api.NodeId(i) ||
-			nodeInfoList.List[i].Status != api.NODE_STATUS_UP ||
-			infoMap[CPU] != api.NodeId(i) ||
-			infoMap[MEMORY] != api.NodeId(i) {
+		infoMap := nodeInfoList.List[i].Value.(map[string]types.NodeId)
+		if nodeInfoList.List[i].Id != types.NodeId(i) ||
+			nodeInfoList.List[i].Status != types.NODE_STATUS_UP ||
+			infoMap[CPU] != types.NodeId(i) ||
+			infoMap[MEMORY] != types.NodeId(i) {
 			t.Error("Invalid node content received, got: ", nodeInfoList.List[i])
 		}
 	}
@@ -205,7 +205,7 @@ func TestGossipStoreGetStoreKeyValue(t *testing.T) {
 func TestGossipStoreMetaInfo(t *testing.T) {
 	printTestInfo()
 
-	g := NewGossipStore(ID).(*GossipStoreImpl)
+	g := NewGossipStore(ID)
 
 	// Case: store empty
 	m := g.MetaInfo()
@@ -215,7 +215,7 @@ func TestGossipStoreMetaInfo(t *testing.T) {
 
 	nodeLen := 10
 	// Case: store with keys, some keys have no ids, other have ids,
-	keyList := []api.StoreKey{"key1", "key2", "key3"}
+	keyList := []types.StoreKey{"key1", "key2", "key3"}
 	for i, key := range keyList {
 		g.kvMap[key] = make(NodeInfoMap)
 		fillUpNodeInfoMap(g.kvMap[key], nodeLen)
@@ -223,11 +223,11 @@ func TestGossipStoreMetaInfo(t *testing.T) {
 		for j := 0; j < nodeLen; j++ {
 			if i%2 == 0 {
 				if j%2 == 0 {
-					delete(g.kvMap[key], api.NodeId(j))
+					delete(g.kvMap[key], types.NodeId(j))
 				}
 			} else {
 				if j%2 == 1 {
-					delete(g.kvMap[key], api.NodeId(j))
+					delete(g.kvMap[key], types.NodeId(j))
 				}
 			}
 		}
@@ -264,8 +264,8 @@ func TestGossipStoreDiff(t *testing.T) {
 	printTestInfo()
 
 	nodeLen := 20
-	g1 := NewGossipStore(ID).(*GossipStoreImpl)
-	g2 := NewGossipStore(ID).(*GossipStoreImpl)
+	g1 := NewGossipStore(ID)
+	g2 := NewGossipStore(ID)
 
 	// Case: empty store and emtpy meta info
 	g2New, g1New := g1.Diff(g2.MetaInfo())
@@ -275,7 +275,7 @@ func TestGossipStoreDiff(t *testing.T) {
 	}
 
 	// Case: empty store and non-empty meta info
-	keyList := []api.StoreKey{"key1", "key2", "key3"}
+	keyList := []types.StoreKey{"key1", "key2", "key3"}
 	for _, key := range keyList {
 		g2.kvMap[key] = make(NodeInfoMap)
 		fillUpNodeInfoMap(g2.kvMap[key], nodeLen)
@@ -322,7 +322,7 @@ func TestGossipStoreDiff(t *testing.T) {
 	//   - keys are present but no node ids
 	//   - keys are present, some have old and some have new ts,
 	//      some have new ids and some ids from meta are missing
-	keyIdMap := make(map[api.StoreKey]api.NodeId)
+	keyIdMap := make(map[types.StoreKey]types.NodeId)
 	for i, key := range keyList {
 		g2.kvMap[key] = make(NodeInfoMap)
 		fillUpNodeInfoMap(g2.kvMap[key], nodeLen)
@@ -332,7 +332,7 @@ func TestGossipStoreDiff(t *testing.T) {
 		}
 		if i < 2 {
 			// key3 values are same
-			keyIdMap[key] = api.NodeId(i)
+			keyIdMap[key] = types.NodeId(i)
 		} else {
 			continue
 		}
@@ -348,7 +348,7 @@ func TestGossipStoreDiff(t *testing.T) {
 					// store have invalid node
 					if int(id) > (nodeLen/2 + nodeLen/4) {
 						nodeInfo := g1.kvMap[key][id]
-						nodeInfo.Status = api.NODE_STATUS_INVALID
+						nodeInfo.Status = types.NODE_STATUS_INVALID
 						g1.kvMap[key][id] = nodeInfo
 					} else {
 						// store has no node
@@ -401,21 +401,21 @@ func TestGossipStoreDiff(t *testing.T) {
 func TestGossipStoreSubset(t *testing.T) {
 	printTestInfo()
 
-	g := NewGossipStore(ID).(*GossipStoreImpl)
+	g := NewGossipStore(ID)
 
 	// empty store and empty nodelist and non-empty nodelist
-	diff := api.StoreNodes{}
+	diff := types.StoreNodes{}
 	sv := g.Subset(diff)
 	if len(sv) != 0 {
 		t.Error("Emtpy subset expected, got: ", sv)
 	}
 
 	nodeLen := 10
-	keyList := []api.StoreKey{"key1", "key2", "key3"}
+	keyList := []types.StoreKey{"key1", "key2", "key3"}
 	for _, key := range keyList {
-		nodeIds := make([]api.NodeId, nodeLen*2)
+		nodeIds := make([]types.NodeId, nodeLen*2)
 		for i := 0; i < nodeLen*2; i++ {
-			nodeIds[i] = api.NodeId(i)
+			nodeIds[i] = types.NodeId(i)
 		}
 		diff[key] = nodeIds
 	}
@@ -471,8 +471,8 @@ func dumpNodeInfo(nodeInfoMap NodeInfoMap, s string, t *testing.T) {
 	}
 }
 
-func verifyNodeInfoMapEquality(store map[api.StoreKey]NodeInfoMap,
-	diff api.StoreDiff, selfMaybeMissing bool, t *testing.T) {
+func verifyNodeInfoMapEquality(store map[types.StoreKey]NodeInfoMap,
+	diff types.StoreDiff, selfMaybeMissing bool, t *testing.T) {
 	if len(store) != len(diff) {
 		t.Error("Updating empty store with non-empty diff gave error,",
 			" got: ", store, " expected: ", diff)
@@ -485,7 +485,7 @@ func verifyNodeInfoMapEquality(store map[api.StoreKey]NodeInfoMap,
 		}
 
 		if len(diffNodeInfoMap) != len(nodeInfoMap) {
-			missingNodeId := make([]api.NodeId, 0)
+			missingNodeId := make([]types.NodeId, 0)
 			for id, _ := range diffNodeInfoMap {
 				_, ok := nodeInfoMap[id]
 				if !ok {
@@ -520,8 +520,8 @@ func verifyNodeInfoMapEquality(store map[api.StoreKey]NodeInfoMap,
 	}
 }
 
-func copyStoreDiff(orig map[api.StoreKey]NodeInfoMap,
-	diff api.StoreDiff) {
+func copyStoreDiff(orig map[types.StoreKey]NodeInfoMap,
+	diff types.StoreDiff) {
 	for key, nodeInfoMap := range orig {
 		diffNodeInfoMap := make(NodeInfoMap)
 		for id, nodeInfo := range nodeInfoMap {
@@ -532,7 +532,7 @@ func copyStoreDiff(orig map[api.StoreKey]NodeInfoMap,
 
 }
 
-func makeNodesOld(nodeInfoMap NodeInfoMap, rem int, excludeId api.NodeId,
+func makeNodesOld(nodeInfoMap NodeInfoMap, rem int, excludeId types.NodeId,
 	excludeSelfId bool) {
 	for id, nodeInfo := range nodeInfoMap {
 		if int(id)%2 == rem && id != excludeId {
@@ -541,7 +541,7 @@ func makeNodesOld(nodeInfoMap NodeInfoMap, rem int, excludeId api.NodeId,
 					olderTime := nodeInfo.LastUpdateTs.UnixNano() - 1000
 					nodeInfo.LastUpdateTs = time.Unix(0, olderTime)
 				} else {
-					nodeInfo.Status = api.NODE_STATUS_INVALID
+					nodeInfo.Status = types.NODE_STATUS_INVALID
 				}
 				nodeInfoMap[id] = nodeInfo
 			}
@@ -552,11 +552,11 @@ func makeNodesOld(nodeInfoMap NodeInfoMap, rem int, excludeId api.NodeId,
 func TestGossipStoreUpdate(t *testing.T) {
 	printTestInfo()
 
-	g := NewGossipStore(ID).(*GossipStoreImpl)
+	g := NewGossipStore(ID)
 
 	// empty store and empty diff and non-empty diff
-	diff := api.StoreDiff{}
-	diff2 := make(map[api.StoreKey]NodeInfoMap)
+	diff := types.StoreDiff{}
+	diff2 := make(map[types.StoreKey]NodeInfoMap)
 	g.Update(diff)
 	if len(g.kvMap) != 0 {
 		t.Error("Updating empty store with empty diff gave non-empty store: ",
@@ -564,8 +564,8 @@ func TestGossipStoreUpdate(t *testing.T) {
 	}
 
 	nodeLen := 10
-	keyList := []api.StoreKey{"key1", "key2", "key3", "key4", "key5"}
-	orig := api.StoreDiff{}
+	keyList := []types.StoreKey{"key1", "key2", "key3", "key4", "key5"}
+	orig := types.StoreDiff{}
 	for _, key := range keyList {
 		nodeInfoMap := make(NodeInfoMap)
 		fillUpNodeInfoMap(nodeInfoMap, nodeLen)
@@ -580,9 +580,9 @@ func TestGossipStoreUpdate(t *testing.T) {
 	//   - diff has new keys
 	//   - diff has same keys but some ids are newer
 	//   - diff has same keys and same ids but content is newer
-	diff = api.StoreDiff{}
-	orig = api.StoreDiff{}
-	g.kvMap = make(map[api.StoreKey]NodeInfoMap)
+	diff = types.StoreDiff{}
+	orig = types.StoreDiff{}
+	g.kvMap = make(map[types.StoreKey]NodeInfoMap)
 	for _, key := range keyList {
 		nodeInfoMap := make(NodeInfoMap)
 		fillUpNodeInfoMap(nodeInfoMap, nodeLen)
@@ -622,7 +622,7 @@ func TestGossipStoreUpdate(t *testing.T) {
 func TestGossipStoreGetStoreKeys(t *testing.T) {
 	printTestInfo()
 
-	g := NewGossipStore(ID).(*GossipStoreImpl)
+	g := NewGossipStore(ID)
 
 	keys := g.GetStoreKeys()
 	if len(keys) != 0 {
@@ -630,7 +630,7 @@ func TestGossipStoreGetStoreKeys(t *testing.T) {
 	}
 
 	nodeLen := 10
-	keyList := []api.StoreKey{"key1", "key2", "key3", "key4", "key5"}
+	keyList := []types.StoreKey{"key1", "key2", "key3", "key4", "key5"}
 	for _, key := range keyList {
 		nodeInfoMap := make(NodeInfoMap)
 		fillUpNodeInfoMap(nodeInfoMap, nodeLen)
@@ -654,11 +654,11 @@ func TestGossipStoreGetStoreKeys(t *testing.T) {
 func TestGossipStoreBlackBoxTests(t *testing.T) {
 	printTestInfo()
 
-	g1 := NewGossipStore(ID).(*GossipStoreImpl)
-	g2 := NewGossipStore(ID).(*GossipStoreImpl)
+	g1 := NewGossipStore(ID)
+	g2 := NewGossipStore(ID)
 
 	nodeLen := 3
-	keyList := []api.StoreKey{"key1", "key2", "key3", "key5"}
+	keyList := []types.StoreKey{"key1", "key2", "key3", "key5"}
 	for i, key := range keyList {
 		nodeInfoMap := make(NodeInfoMap)
 		fillUpNodeInfoMap(nodeInfoMap, nodeLen)
@@ -692,7 +692,7 @@ func TestGossipStoreBlackBoxTests(t *testing.T) {
 		}
 
 		if len(diffNodeInfoMap) != len(nodeInfoMap) {
-			missingNodeId := make([]api.NodeId, 0)
+			missingNodeId := make([]types.NodeId, 0)
 			for id, _ := range diffNodeInfoMap {
 				_, ok := nodeInfoMap[id]
 				if !ok {

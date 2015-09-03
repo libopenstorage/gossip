@@ -1,13 +1,13 @@
 package proto
 
 import (
-	"github.com/libopenstorage/gossip/api"
+	"github.com/libopenstorage/gossip/types"
 	"testing"
 	"time"
 )
 
 type TestData struct {
-	Data map[api.StoreKey]api.NodeInfo
+	Data map[types.StoreKey]types.NodeInfo
 }
 
 func TestTransportSendAndRcvData(t *testing.T) {
@@ -16,10 +16,10 @@ func TestTransportSendAndRcvData(t *testing.T) {
 	data1 := &TestData{}
 	data2 := &TestData{}
 
-	data1.Data = make(map[api.StoreKey]api.NodeInfo)
-	data2.Data = make(map[api.StoreKey]api.NodeInfo)
+	data1.Data = make(map[types.StoreKey]types.NodeInfo)
+	data2.Data = make(map[types.StoreKey]types.NodeInfo)
 
-	var handler api.OnMessageRcv = func(c api.MessageChannel) {
+	var handler types.OnMessageRcv = func(c types.MessageChannel) {
 		err := c.RcvData(&data2)
 		if err != nil {
 			t.Error("Error receiving data: ", err)
@@ -33,10 +33,10 @@ func TestTransportSendAndRcvData(t *testing.T) {
 	go r.RunOnRcvData()
 	time.Sleep(1 * time.Second)
 
-	keyList := []api.StoreKey{"key1", "key2"}
+	keyList := []types.StoreKey{"key1", "key2"}
 	for i, key := range keyList {
-		var node api.NodeInfo
-		node.Id = api.NodeId(i)
+		var node types.NodeInfo
+		node.Id = types.NodeId(i)
 		node.Value = "some data"
 		data1.Data[key] = node
 	}
@@ -62,10 +62,10 @@ func TestTransportFailures(t *testing.T) {
 	data1 := &TestData{}
 	data2 := &TestData{}
 
-	data1.Data = make(map[api.StoreKey]api.NodeInfo)
-	data2.Data = make(map[api.StoreKey]api.NodeInfo)
+	data1.Data = make(map[types.StoreKey]types.NodeInfo)
+	data2.Data = make(map[types.StoreKey]types.NodeInfo)
 
-	var handler api.OnMessageRcv = func(c api.MessageChannel) {
+	var handler types.OnMessageRcv = func(c types.MessageChannel) {
 		err := c.RcvData(&data2)
 		if err == nil {
 			t.Error("Did not receive expected error")
@@ -80,10 +80,10 @@ func TestTransportFailures(t *testing.T) {
 	go r.RunOnRcvData()
 	time.Sleep(5 * time.Second)
 
-	keyList := []api.StoreKey{"key1", "key2"}
+	keyList := []types.StoreKey{"key1", "key2"}
 	for i, key := range keyList {
-		var node api.NodeInfo
-		node.Id = api.NodeId(i)
+		var node types.NodeInfo
+		node.Id = types.NodeId(i)
 		node.Value = "some data"
 		data1.Data[key] = node
 	}
@@ -117,7 +117,7 @@ func TestTransportFailures(t *testing.T) {
 	if s == nil {
 		t.Fatal("Error creating send channel, failing test")
 	}
-	nonMarshalData := make(map[api.StoreKey]map[api.StoreKey]NodeInfoMap)
+	nonMarshalData := make(map[types.StoreKey]map[types.StoreKey]NodeInfoMap)
 	err := s.SendData(nonMarshalData)
 	if err != nil {
 		t.Error("Expected error sending non-marshalable data")
@@ -134,12 +134,12 @@ func TestTransportTwoWayExchange(t *testing.T) {
 	data3 := &TestData{}
 	data4 := &TestData{}
 
-	data1.Data = make(map[api.StoreKey]api.NodeInfo)
-	data2.Data = make(map[api.StoreKey]api.NodeInfo)
-	data3.Data = make(map[api.StoreKey]api.NodeInfo)
-	data4.Data = make(map[api.StoreKey]api.NodeInfo)
+	data1.Data = make(map[types.StoreKey]types.NodeInfo)
+	data2.Data = make(map[types.StoreKey]types.NodeInfo)
+	data3.Data = make(map[types.StoreKey]types.NodeInfo)
+	data4.Data = make(map[types.StoreKey]types.NodeInfo)
 
-	var handler api.OnMessageRcv = func(c api.MessageChannel) {
+	var handler types.OnMessageRcv = func(c types.MessageChannel) {
 		err := c.RcvData(&data2)
 		if err != nil {
 			t.Error("Error receiving data2: ", err)
@@ -172,10 +172,10 @@ func TestTransportTwoWayExchange(t *testing.T) {
 	go r.RunOnRcvData()
 	time.Sleep(1 * time.Second)
 
-	keyList := []api.StoreKey{"key1", "key2"}
+	keyList := []types.StoreKey{"key1", "key2"}
 	for i, key := range keyList {
-		var node api.NodeInfo
-		node.Id = api.NodeId(i)
+		var node types.NodeInfo
+		node.Id = types.NodeId(i)
 		node.Value = "some data"
 		data1.Data[key] = node
 	}

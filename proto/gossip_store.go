@@ -5,33 +5,33 @@ import (
 	"sync"
 	"time"
 
-	"github.com/libopenstorage/gossip/api"
+	"github.com/libopenstorage/gossip/types"
 )
 
-type NodeInfoMap map[api.NodeId]api.NodeInfo
+type NodeInfoMap map[types.NodeId]types.NodeInfo
 
 type GossipStoreImpl struct {
 	sync.Mutex
-	id    api.NodeId
-	kvMap map[api.StoreKey]NodeInfoMap
+	id    types.NodeId
+	kvMap map[types.StoreKey]NodeInfoMap
 }
 
-func NewGossipStore(id api.NodeId) api.GossipStore {
+func NewGossipStore(id types.NodeId) *GossipStoreImpl {
 	n := &GossipStoreImpl{}
-	n.Init(id)
+	n.InitStore(id)
 	return n
 }
 
-func (s *GossipStoreImpl) NodeId() api.NodeId {
+func (s *GossipStoreImpl) NodeId() types.NodeId {
 	return s.id
 }
 
-func (s *GossipStoreImpl) Init(id api.NodeId) {
-	s.kvMap = make(map[api.StoreKey]NodeInfoMap)
+func (s *GossipStoreImpl) InitStore(id types.NodeId) {
+	s.kvMap = make(map[types.StoreKey]NodeInfoMap)
 	s.id = id
 }
 
-func (s *GossipStoreImpl) UpdateSelf(key api.StoreKey, val interface{}) {
+func (s *GossipStoreImpl) UpdateSelf(key types.StoreKey, val interface{}) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -41,13 +41,13 @@ func (s *GossipStoreImpl) UpdateSelf(key api.StoreKey, val interface{}) {
 		s.kvMap[key] = nodeValue
 	}
 
-	nodeValue[s.id] = api.NodeInfo{Id: s.id,
+	nodeValue[s.id] = types.NodeInfo{Id: s.id,
 		Value:        val,
 		LastUpdateTs: time.Now(),
-		Status:       api.NODE_STATUS_UP}
+		Status:       types.NODE_STATUS_UP}
 }
 
-func (s *GossipStoreImpl) GetStoreKeyValue(key api.StoreKey) api.NodeInfoList {
+func (s *GossipStoreImpl) GetStoreKeyValue(key types.StoreKey) types.NodeInfoList {
 	s.Lock()
 	defer s.Unlock()
 
@@ -55,12 +55,12 @@ func (s *GossipStoreImpl) GetStoreKeyValue(key api.StoreKey) api.NodeInfoList {
 	// Find the max node id.
 	nodeInfos, ok := s.kvMap[key]
 	if !ok || len(nodeInfos) == 0 {
-		return api.NodeInfoList{List: nil}
+		return types.NodeInfoList{List: nil}
 	}
 
-	maxId := api.NodeId(0)
+	maxId := types.NodeId(0)
 	for id, _ := range nodeInfos {
-		if nodeInfos[id].Status == api.NODE_STATUS_INVALID {
+		if nodeInfos[id].Status == types.NODE_STATUS_INVALID {
 			continue
 		}
 		if id > maxId {
@@ -69,23 +69,23 @@ func (s *GossipStoreImpl) GetStoreKeyValue(key api.StoreKey) api.NodeInfoList {
 	}
 
 	// maxId + 1 because we have a zero-based indexing
-	nodeInfoList := make([]api.NodeInfo, maxId+1)
+	nodeInfoList := make([]types.NodeInfo, maxId+1)
 	for id, _ := range nodeInfos {
-		if nodeInfos[id].Status == api.NODE_STATUS_INVALID {
+		if nodeInfos[id].Status == types.NODE_STATUS_INVALID {
 			continue
 		}
 		// this must create a copy
 		nodeInfoList[id] = nodeInfos[id]
 	}
 
-	return api.NodeInfoList{List: nodeInfoList}
+	return types.NodeInfoList{List: nodeInfoList}
 }
 
-func (s *GossipStoreImpl) GetStoreKeys() []api.StoreKey {
+func (s *GossipStoreImpl) GetStoreKeys() []types.StoreKey {
 	s.Lock()
 	defer s.Unlock()
 
-	storeKeys := make([]api.StoreKey, len(s.kvMap))
+	storeKeys := make([]types.StoreKey, len(s.kvMap))
 	i := 0
 	for key, _ := range s.kvMap {
 		storeKeys[i] = key
@@ -94,18 +94,18 @@ func (s *GossipStoreImpl) GetStoreKeys() []api.StoreKey {
 	return storeKeys
 }
 
-func (s *GossipStoreImpl) MetaInfo() api.StoreMetaInfo {
+func (s *GossipStoreImpl) MetaInfo() types.StoreMetaInfo {
 	s.Lock()
 	defer s.Unlock()
 
-	mInfo := make(api.StoreMetaInfo, len(s.kvMap))
+	mInfo := make(types.StoreMetaInfo, len(s.kvMap))
 
 	for key, nodeValue := range s.kvMap {
-		metaInfoList := make([]api.NodeMetaInfo, 0, len(nodeValue))
+		metaInfoList := make([]types.NodeMetaInfo, 0, len(nodeValue))
 
 		for key, _ := range nodeValue {
-			if nodeValue[key].Status != api.NODE_STATUS_INVALID {
-				nodeMetaInfo := api.NodeMetaInfo{
+			if nodeValue[key].Status != types.NODE_STATUS_INVALID {
+				nodeMetaInfo := types.NodeMetaInfo{
 					Id:           nodeValue[key].Id,
 					LastUpdateTs: nodeValue[key].LastUpdateTs}
 				metaInfoList = append(metaInfoList, nodeMetaInfo)
@@ -113,7 +113,7 @@ func (s *GossipStoreImpl) MetaInfo() api.StoreMetaInfo {
 		}
 
 		if len(metaInfoList) > 0 {
-			mInfo[key] = api.NodeMetaInfoList{List: metaInfoList}
+			mInfo[key] = types.NodeMetaInfoList{List: metaInfoList}
 		}
 	}
 
@@ -121,12 +121,12 @@ func (s *GossipStoreImpl) MetaInfo() api.StoreMetaInfo {
 }
 
 func (s *GossipStoreImpl) Diff(
-	d api.StoreMetaInfo) (api.StoreNodes, api.StoreNodes) {
+	d types.StoreMetaInfo) (types.StoreNodes, types.StoreNodes) {
 	s.Lock()
 	defer s.Unlock()
 
-	diffNewNodes := make(map[api.StoreKey][]api.NodeId)
-	selfNewNodes := make(map[api.StoreKey][]api.NodeId)
+	diffNewNodes := make(map[types.StoreKey][]types.NodeId)
+	selfNewNodes := make(map[types.StoreKey][]types.NodeId)
 
 	for key, metaInfoList := range d {
 		selfNodeInfo, ok := s.kvMap[key]
@@ -134,7 +134,7 @@ func (s *GossipStoreImpl) Diff(
 		metaInfoLen := len(metaInfoList.List)
 		if !ok {
 			// we do not have info about this key
-			newIds := make([]api.NodeId, metaInfoLen)
+			newIds := make([]types.NodeId, metaInfoLen)
 			for i := 0; i < metaInfoLen; i++ {
 				newIds[i] = metaInfoList.List[i].Id
 			}
@@ -143,8 +143,8 @@ func (s *GossipStoreImpl) Diff(
 			continue
 		}
 
-		diffNewIds := make([]api.NodeId, 0, metaInfoLen)
-		selfNewIds := make([]api.NodeId, 0, metaInfoLen)
+		diffNewIds := make([]types.NodeId, 0, metaInfoLen)
+		selfNewIds := make([]types.NodeId, 0, metaInfoLen)
 		for i := 0; i < metaInfoLen; i++ {
 			metaId := metaInfoList.List[i].Id
 			_, ok := selfNodeInfo[metaId]
@@ -155,7 +155,7 @@ func (s *GossipStoreImpl) Diff(
 			// avoid copying the whole node info
 			// the diff has newer node if our status for node is invalid
 			case selfNodeInfo[metaId].Status ==
-				api.NODE_STATUS_INVALID:
+				types.NODE_STATUS_INVALID:
 				diffNewIds = append(diffNewIds, metaId)
 
 			// or if its last update timestamp is newer than ours
@@ -186,9 +186,9 @@ func (s *GossipStoreImpl) Diff(
 		}
 
 		// we do not have info about this key
-		newIds := make([]api.NodeId, 0)
+		newIds := make([]types.NodeId, 0)
 		for nodeId, _ := range nodeInfoMap {
-			if nodeInfoMap[nodeId].Status != api.NODE_STATUS_INVALID {
+			if nodeInfoMap[nodeId].Status != types.NODE_STATUS_INVALID {
 				newIds = append(newIds, nodeId)
 			}
 		}
@@ -198,11 +198,11 @@ func (s *GossipStoreImpl) Diff(
 	return diffNewNodes, selfNewNodes
 }
 
-func (s *GossipStoreImpl) Subset(nodes api.StoreNodes) api.StoreDiff {
+func (s *GossipStoreImpl) Subset(nodes types.StoreNodes) types.StoreDiff {
 	s.Lock()
 	defer s.Unlock()
 
-	subset := make(api.StoreDiff)
+	subset := make(types.StoreDiff)
 
 	for key, nodeIdList := range nodes {
 		selfNodeInfos, ok := s.kvMap[key]
@@ -228,7 +228,7 @@ func (s *GossipStoreImpl) Subset(nodes api.StoreNodes) api.StoreDiff {
 	return subset
 }
 
-func (s *GossipStoreImpl) Update(diff api.StoreDiff) {
+func (s *GossipStoreImpl) Update(diff types.StoreDiff) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -249,7 +249,7 @@ func (s *GossipStoreImpl) Update(diff api.StoreDiff) {
 			continue
 		}
 		for id, info := range newValue {
-			if selfValue[id].Status == api.NODE_STATUS_INVALID ||
+			if selfValue[id].Status == types.NODE_STATUS_INVALID ||
 				selfValue[id].LastUpdateTs.Before(info.LastUpdateTs) {
 				selfValue[id] = info
 			}
@@ -263,11 +263,11 @@ func (s *GossipStoreImpl) UpdateNodeStatuses(d time.Duration) {
 
 	for _, nodeValue := range s.kvMap {
 		for id, _ := range nodeValue {
-			if nodeValue[id].Status != api.NODE_STATUS_INVALID &&
+			if nodeValue[id].Status != types.NODE_STATUS_INVALID &&
 				id != s.id &&
 				(time.Now().Sub(nodeValue[id].LastUpdateTs)) >= d {
 				nodeInfo := nodeValue[id]
-				nodeInfo.Status = api.NODE_STATUS_DOWN
+				nodeInfo.Status = types.NODE_STATUS_DOWN
 				nodeValue[id] = nodeInfo
 			}
 		}

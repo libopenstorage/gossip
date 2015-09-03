@@ -1,16 +1,24 @@
 package proto
 
 import (
-	"github.com/libopenstorage/gossip/api"
+	"github.com/libopenstorage/gossip/types"
 	"math/rand"
 	"strconv"
 	"testing"
 	"time"
 )
 
+// New returns an initialized Gossip node
+// which identifies itself with the given ip
+func NewGossiperImpl(ip string, selfNodeId types.NodeId) *GossiperImpl {
+	g := new(GossiperImpl)
+	g.Init(ip, selfNodeId)
+	return g
+}
+
 func TestGossiperAddRemoveGetNode(t *testing.T) {
 	printTestInfo()
-	g := NewGossiper("0.0.0.0:9010", 1)
+	g := NewGossiperImpl("0.0.0.0:9010", 1)
 
 	nodes := []string{"0.0.0.0:90011",
 		"0.0.0.0:90012", "0.0.0.0:90013",
@@ -65,7 +73,7 @@ outer:
 
 func TestGossiperMisc(t *testing.T) {
 	printTestInfo()
-	g := NewGossiper("0.0.0.0:9092", 1)
+	g := NewGossiperImpl("0.0.0.0:9092", 1)
 
 	// get the default value
 	gossipIntvl := g.GossipInterval()
@@ -100,7 +108,7 @@ func TestGossiperMisc(t *testing.T) {
 	g.Stop()
 }
 
-func verifyGossiperEquality(g1 api.Gossiper, g2 api.Gossiper, t *testing.T) {
+func verifyGossiperEquality(g1 *GossiperImpl, g2 *GossiperImpl, t *testing.T) {
 	// check for the equality
 	g1Keys := g1.GetStoreKeys()
 	g2Keys := g2.GetStoreKeys()
@@ -119,8 +127,8 @@ func verifyGossiperEquality(g1 api.Gossiper, g2 api.Gossiper, t *testing.T) {
 			t.Fatal("Lens mismatch between g1 and g2 values")
 		}
 
-		i := api.NodeId(0)
-		for ; i < api.NodeId(len(g1Values.List)); i++ {
+		i := types.NodeId(0)
+		for ; i < types.NodeId(len(g1Values.List)); i++ {
 			if g1Values.List[i].Id != g2Values.List[i].Id {
 				t.Error("Values mismtach between g1 and g2, g1:\n",
 					g1Values.List[i].Id, "\ng2:", g2Values.List[i].Id)
@@ -139,9 +147,9 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 		"0.0.0.0:9160", "0.0.0.0:9161"}
 
 	rand.Seed(time.Now().UnixNano())
-	gossipers := make(map[string]api.Gossiper)
+	gossipers := make(map[string]*GossiperImpl)
 	for i, nodeId := range nodes {
-		g := NewGossiper(nodeId, api.NodeId(i))
+		g := NewGossiperImpl(nodeId, types.NodeId(i))
 
 		g.SetGossipInterval(time.Duration(1500+rand.Intn(200)) * time.Millisecond)
 		// add one neighbor and 2 random peers
@@ -178,11 +186,11 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 		time.Sleep(2000 * time.Millisecond)
 	}
 
-	updateFunc := func(g api.Gossiper, id string, max int, t *testing.T) {
+	updateFunc := func(g *GossiperImpl, id string, max int, t *testing.T) {
 		for i := 0; i < max; i++ {
 			t.Log("Updting data for ", id)
 			g.UpdateSelf("sameKey", strconv.Itoa(i))
-			g.UpdateSelf(api.StoreKey(strconv.Itoa(int(g.NodeId()))), strconv.Itoa(i*i))
+			g.UpdateSelf(types.StoreKey(strconv.Itoa(int(g.NodeId()))), strconv.Itoa(i*i))
 			time.Sleep(g.GossipInterval() + time.Duration(rand.Intn(100)))
 		}
 	}
@@ -242,7 +250,7 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 
 			for j, nodeInfo := range values.List {
 				_, ok := shutdownNodes[j]
-				if ok && nodeInfo.Status == api.NODE_STATUS_UP {
+				if ok && nodeInfo.Status == types.NODE_STATUS_UP {
 					t.Error("Node not marked down: ", nodeInfo, " for node: ", nodes[i])
 				}
 			}

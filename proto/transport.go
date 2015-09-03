@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/libopenstorage/gossip/api"
+	"github.com/libopenstorage/gossip/types"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 
 type ConnObj struct {
 	ip         string
-	rcvHandler api.OnMessageRcv
+	rcvHandler types.OnMessageRcv
 	conn       net.Conn
 	listener   net.Listener
 }
@@ -35,7 +35,7 @@ func connectionString(ip string) string {
 	return ip
 }
 
-func NewMessageChannel(ip string) api.MessageChannel {
+func NewMessageChannel(ip string) types.MessageChannel {
 	// if ip string is localhost and any port,
 	c, err := net.Dial(CONN_TYPE, connectionString(ip))
 	if err != nil {
@@ -46,7 +46,7 @@ func NewMessageChannel(ip string) api.MessageChannel {
 }
 
 func NewRunnableMessageChannel(addr string,
-	f api.OnMessageRcv) api.MessageChannel {
+	f types.OnMessageRcv) types.MessageChannel {
 	if addr == "" {
 		addr = CONN_HOST + ":" + CONN_PORT
 	}

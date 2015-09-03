@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/libopenstorage/gossip/api"
+	"github.com/libopenstorage/gossip/types"
 )
 
 const (
@@ -36,14 +36,8 @@ func logAndGetError(msg string) error {
 	return errors.New(msg)
 }
 
-// New returns an initialized Gossip node
-// which identifies itself with the given ip
-func NewGossiper(ip string, selfNodeId api.NodeId) api.Gossiper {
-	return new(GossiperImpl).init(ip, selfNodeId)
-}
-
-func (g *GossiperImpl) init(ip string, selfNodeId api.NodeId) api.Gossiper {
-	g.Init(selfNodeId)
+func (g *GossiperImpl) Init(ip string, selfNodeId types.NodeId) {
+	g.InitStore(selfNodeId)
 	g.name = ip
 	g.nodes = make([]string, 0)
 	g.done = make(chan bool, 1)
@@ -55,8 +49,6 @@ func (g *GossiperImpl) init(ip string, selfNodeId api.NodeId) api.Gossiper {
 	go g.sendLoop()
 	go g.receiveLoop()
 	go g.updateStatusLoop()
-
-	return g
 }
 
 func (g *GossiperImpl) Stop() {
@@ -124,9 +116,9 @@ func (g *GossiperImpl) GetNodes() []string {
 
 // getUpdatesFromPeer receives node data from the peer
 // for which the peer has more latest information available
-func (g *GossiperImpl) getUpdatesFromPeer(conn api.MessageChannel) error {
+func (g *GossiperImpl) getUpdatesFromPeer(conn types.MessageChannel) error {
 
-	var newPeerData api.StoreDiff
+	var newPeerData types.StoreDiff
 	err := conn.RcvData(&newPeerData)
 	if err != nil {
 		log.Error("Error fetching the latest peer data", err)
@@ -140,7 +132,7 @@ func (g *GossiperImpl) getUpdatesFromPeer(conn api.MessageChannel) error {
 
 // sendNodeMetaInfo sends a list of meta info for all
 // the nodes in the nodes's store to the peer
-func (g *GossiperImpl) sendNodeMetaInfo(conn api.MessageChannel) error {
+func (g *GossiperImpl) sendNodeMetaInfo(conn types.MessageChannel) error {
 	msg := g.MetaInfo()
 	err := conn.SendData(&msg)
 	return err
@@ -148,15 +140,15 @@ func (g *GossiperImpl) sendNodeMetaInfo(conn api.MessageChannel) error {
 
 // sendUpdatesToPeer sends the information about the given
 // nodes to the peer
-func (g *GossiperImpl) sendUpdatesToPeer(diff *api.StoreNodes,
-	conn api.MessageChannel) error {
+func (g *GossiperImpl) sendUpdatesToPeer(diff *types.StoreNodes,
+	conn types.MessageChannel) error {
 	dataToSend := g.Subset(*diff)
 	return conn.SendData(&dataToSend)
 }
 
-func (g *GossiperImpl) handleGossip(conn api.MessageChannel) {
+func (g *GossiperImpl) handleGossip(conn types.MessageChannel) {
 	log.Info(g.id, " servicing gossip request")
-	var peerMetaInfo api.StoreMetaInfo
+	var peerMetaInfo types.StoreMetaInfo
 	err := error(nil)
 
 	// 1. Get the info about the node data that the sender has
@@ -196,7 +188,7 @@ func (g *GossiperImpl) handleGossip(conn api.MessageChannel) {
 }
 
 func (g *GossiperImpl) receiveLoop() {
-	var handler api.OnMessageRcv = func(c api.MessageChannel) { g.handleGossip(c) }
+	var handler types.OnMessageRcv = func(c types.MessageChannel) { g.handleGossip(c) }
 	c := NewRunnableMessageChannel(g.name, handler)
 	go c.RunOnRcvData()
 	// block waiting for the done signal
@@ -277,7 +269,7 @@ func (g *GossiperImpl) gossip() {
 	}
 
 	// get a list of requested nodes from the peer and
-	var diff api.StoreNodes
+	var diff types.StoreNodes
 	err = conn.RcvData(&diff)
 	if err != nil {
 		log.Error("Failed to get request info to the peer: ", err)
