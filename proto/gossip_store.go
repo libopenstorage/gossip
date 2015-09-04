@@ -8,12 +8,10 @@ import (
 	"github.com/libopenstorage/gossip/types"
 )
 
-type NodeInfoMap map[types.NodeId]types.NodeInfo
-
 type GossipStoreImpl struct {
 	sync.Mutex
 	id    types.NodeId
-	kvMap map[types.StoreKey]NodeInfoMap
+	kvMap map[types.StoreKey]types.NodeInfoMap
 }
 
 func NewGossipStore(id types.NodeId) *GossipStoreImpl {
@@ -27,7 +25,7 @@ func (s *GossipStoreImpl) NodeId() types.NodeId {
 }
 
 func (s *GossipStoreImpl) InitStore(id types.NodeId) {
-	s.kvMap = make(map[types.StoreKey]NodeInfoMap)
+	s.kvMap = make(map[types.StoreKey]types.NodeInfoMap)
 	s.id = id
 }
 
@@ -37,7 +35,7 @@ func (s *GossipStoreImpl) UpdateSelf(key types.StoreKey, val interface{}) {
 
 	nodeValue, ok := s.kvMap[key]
 	if !ok {
-		nodeValue = make(NodeInfoMap)
+		nodeValue = make(types.NodeInfoMap)
 		s.kvMap[key] = nodeValue
 	}
 
@@ -47,38 +45,27 @@ func (s *GossipStoreImpl) UpdateSelf(key types.StoreKey, val interface{}) {
 		Status:       types.NODE_STATUS_UP}
 }
 
-func (s *GossipStoreImpl) GetStoreKeyValue(key types.StoreKey) types.NodeInfoList {
+func (s *GossipStoreImpl) GetStoreKeyValue(key types.StoreKey) types.NodeInfoMap {
 	s.Lock()
 	defer s.Unlock()
 
 	// we return an array, indexed by the node id.
 	// Find the max node id.
+	nodeInfoMap := make(types.NodeInfoMap)
 	nodeInfos, ok := s.kvMap[key]
 	if !ok || len(nodeInfos) == 0 {
-		return types.NodeInfoList{List: nil}
+		return nodeInfoMap
 	}
 
-	maxId := types.NodeId(0)
-	for id, _ := range nodeInfos {
-		if nodeInfos[id].Status == types.NODE_STATUS_INVALID {
-			continue
-		}
-		if id > maxId {
-			maxId = id
-		}
-	}
-
-	// maxId + 1 because we have a zero-based indexing
-	nodeInfoList := make([]types.NodeInfo, maxId+1)
-	for id, _ := range nodeInfos {
-		if nodeInfos[id].Status == types.NODE_STATUS_INVALID {
+	for id, nodeInfo := range nodeInfos {
+		if nodeInfo.Status == types.NODE_STATUS_INVALID {
 			continue
 		}
 		// this must create a copy
-		nodeInfoList[id] = nodeInfos[id]
+		nodeInfoMap[id] = nodeInfo
 	}
 
-	return types.NodeInfoList{List: nodeInfoList}
+	return nodeInfoMap
 }
 
 func (s *GossipStoreImpl) GetStoreKeys() []types.StoreKey {
@@ -212,7 +199,7 @@ func (s *GossipStoreImpl) Subset(nodes types.StoreNodes) types.StoreDiff {
 		}
 
 		// create a new map to hold the diff
-		nodeInfoMap := make(NodeInfoMap)
+		nodeInfoMap := make(types.NodeInfoMap)
 		for _, id := range nodeIdList {
 			_, ok := selfNodeInfos[id]
 			if !ok {
@@ -241,7 +228,7 @@ func (s *GossipStoreImpl) Update(diff types.StoreDiff) {
 		selfValue, ok := s.kvMap[key]
 		if !ok {
 			// create a copy
-			nodeInfoMap := make(NodeInfoMap)
+			nodeInfoMap := make(types.NodeInfoMap)
 			for id, _ := range newValue {
 				nodeInfoMap[id] = newValue[id]
 			}

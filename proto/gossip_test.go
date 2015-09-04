@@ -18,7 +18,7 @@ func NewGossiperImpl(ip string, selfNodeId types.NodeId) *GossiperImpl {
 
 func TestGossiperAddRemoveGetNode(t *testing.T) {
 	printTestInfo()
-	g := NewGossiperImpl("0.0.0.0:9010", 1)
+	g := NewGossiperImpl("0.0.0.0:9010", "1")
 
 	nodes := []string{"0.0.0.0:90011",
 		"0.0.0.0:90012", "0.0.0.0:90013",
@@ -73,7 +73,7 @@ outer:
 
 func TestGossiperMisc(t *testing.T) {
 	printTestInfo()
-	g := NewGossiperImpl("0.0.0.0:9092", 1)
+	g := NewGossiperImpl("0.0.0.0:9092", "1")
 
 	// get the default value
 	gossipIntvl := g.GossipInterval()
@@ -123,15 +123,15 @@ func verifyGossiperEquality(g1 *GossiperImpl, g2 *GossiperImpl, t *testing.T) {
 		t.Log("g1Values: ", g1Values)
 		t.Log("g2Values: ", g2Values)
 
-		if len(g1Values.List) != len(g2Values.List) {
+		if len(g1Values) != len(g2Values) {
 			t.Fatal("Lens mismatch between g1 and g2 values")
 		}
 
-		i := types.NodeId(0)
-		for ; i < types.NodeId(len(g1Values.List)); i++ {
-			if g1Values.List[i].Id != g2Values.List[i].Id {
+		for i := 0; i < len(g1Values); i++ {
+			id := types.NodeId(strconv.Itoa(i))
+			if g1Values[id].Id != g2Values[id].Id {
 				t.Error("Values mismtach between g1 and g2, g1:\n",
-					g1Values.List[i].Id, "\ng2:", g2Values.List[i].Id)
+					g1Values[id].Id, "\ng2:", g2Values[id].Id)
 			}
 		}
 	}
@@ -190,7 +190,7 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 		for i := 0; i < max; i++ {
 			t.Log("Updting data for ", id)
 			g.UpdateSelf("sameKey", strconv.Itoa(i))
-			g.UpdateSelf(types.StoreKey(strconv.Itoa(int(g.NodeId()))), strconv.Itoa(i*i))
+			g.UpdateSelf(types.StoreKey(g.NodeId()), strconv.Itoa(i*i))
 			time.Sleep(g.GossipInterval() + time.Duration(rand.Intn(100)))
 		}
 	}
@@ -248,8 +248,9 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 		for _, key := range keys {
 			values := g.GetStoreKeyValue(key)
 
-			for j, nodeInfo := range values.List {
-				_, ok := shutdownNodes[j]
+			for j, nodeInfo := range values {
+				nodeId, _ := strconv.Atoi(string(j))
+				_, ok := shutdownNodes[nodeId]
 				if ok && nodeInfo.Status == types.NODE_STATUS_UP {
 					t.Error("Node not marked down: ", nodeInfo, " for node: ", nodes[i])
 				}

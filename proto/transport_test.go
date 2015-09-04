@@ -2,6 +2,7 @@ package proto
 
 import (
 	"github.com/libopenstorage/gossip/types"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -117,7 +118,7 @@ func TestTransportFailures(t *testing.T) {
 	if s == nil {
 		t.Fatal("Error creating send channel, failing test")
 	}
-	nonMarshalData := make(map[types.StoreKey]map[types.StoreKey]NodeInfoMap)
+	nonMarshalData := make(map[types.StoreKey]map[types.StoreKey]types.NodeInfoMap)
 	err := s.SendData(nonMarshalData)
 	if err != nil {
 		t.Error("Expected error sending non-marshalable data")
@@ -148,7 +149,8 @@ func TestTransportTwoWayExchange(t *testing.T) {
 		}
 
 		for key, nodeInfo := range data2.Data {
-			nodeInfo.Id = nodeInfo.Id + 1
+			intId, _ := strconv.Atoi(string(nodeInfo.Id))
+			nodeInfo.Id = types.NodeId(strconv.Itoa(intId + 1))
 			data2.Data[key] = nodeInfo
 		}
 		err = c.SendData(data2)
@@ -193,7 +195,8 @@ func TestTransportTwoWayExchange(t *testing.T) {
 		t.Fatal("Error receving data3: ", err)
 	}
 	for key, nodeInfo := range data3.Data {
-		nodeInfo.Id = nodeInfo.Id + 1
+		intId, _ := strconv.Atoi(string(nodeInfo.Id))
+		nodeInfo.Id = types.NodeId(strconv.Itoa(intId + 1))
 		data3.Data[key] = nodeInfo
 	}
 	time.Sleep(20 * time.Millisecond)
@@ -217,9 +220,12 @@ func TestTransportTwoWayExchange(t *testing.T) {
 		nodeInfo3 := data3.Data[key]
 		nodeInfo4 := data4.Data[key]
 
-		if nodeInfo2.Id != nodeInfo.Id+1 ||
-			nodeInfo3.Id != nodeInfo.Id+2 ||
-			nodeInfo4.Id != nodeInfo.Id+2 {
+		intId, _ := strconv.Atoi(string(nodeInfo.Id))
+		id1 := types.NodeId(strconv.Itoa(intId + 1))
+		id2 := types.NodeId(strconv.Itoa(intId + 2))
+		if nodeInfo2.Id != id1 ||
+			nodeInfo3.Id != id2 ||
+			nodeInfo4.Id != id2 {
 			t.Error("Data mismatch, Data1: ",
 				nodeInfo, "\nData2:", nodeInfo2,
 				"\nData3:", nodeInfo3, "\nData4:", nodeInfo4)

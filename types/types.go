@@ -5,9 +5,10 @@ import (
 	"time"
 )
 
-type NodeId uint16
+type NodeId string
 type StoreKey string
 type NodeStatus uint8
+type NodeInfoMap map[NodeId]NodeInfo
 
 const (
 	NODE_STATUS_INVALID NodeStatus = iota

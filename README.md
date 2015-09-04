@@ -6,7 +6,7 @@ data store. The data store values are exchanged using a push-pull gossip protoco
 
 ```
 // Create a gossiper
-g := NewGossiper("<ip>:<port>", <unique node id>)
+g := NewGossiper("<ip>:<port>", "<unique node id>")
 // Add peer nodes with whom you want to gossip
 g.AddNode("<peer_ip>:<peer_port>")
 ...
