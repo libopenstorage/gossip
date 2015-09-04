@@ -147,13 +147,13 @@ func (g *GossiperImpl) sendUpdatesToPeer(diff *types.StoreNodes,
 }
 
 func (g *GossiperImpl) handleGossip(conn types.MessageChannel) {
-	log.Info(g.id, " servicing gossip request")
+	log.Debug(g.id, " servicing gossip request")
 	var peerMetaInfo types.StoreMetaInfo
 	err := error(nil)
 
 	// 1. Get the info about the node data that the sender has
 	err = conn.RcvData(&peerMetaInfo)
-	log.Info(g.id, " Got meta data: \n", peerMetaInfo)
+	log.Debug(g.id, " Got meta data: \n", peerMetaInfo)
 	if err != nil {
 		return
 	}
@@ -162,7 +162,7 @@ func (g *GossiperImpl) handleGossip(conn types.MessageChannel) {
 	//    the names of the nodes for which this node has stale info
 	//    as compared to the sender
 	diffNew, selfNew := g.Diff(peerMetaInfo)
-	log.Info(g.id, " The diff is: diffNew: \n", diffNew, " \nselfNew:\n", selfNew)
+	log.Debug(g.id, " The diff is: diffNew: \n", diffNew, " \nselfNew:\n", selfNew)
 
 	// 3. Send this list to the peer, and get the latest data
 	// for them
@@ -194,7 +194,6 @@ func (g *GossiperImpl) receiveLoop() {
 	// block waiting for the done signal
 	<-g.done
 	c.Close()
-	log.Info("Stopped receive loop")
 }
 
 // sendLoop periodically connects to a random peer
@@ -204,10 +203,8 @@ func (g *GossiperImpl) sendLoop() {
 	for {
 		select {
 		case <-tick:
-			log.Info("Starting gossip")
 			g.gossip()
 		case <-g.done:
-			log.Info("sendLoop now exiting")
 			return
 		}
 	}
@@ -220,11 +217,8 @@ func (g *GossiperImpl) updateStatusLoop() {
 	for {
 		select {
 		case <-tick:
-			log.Info("Starting to update node statuses")
 			g.UpdateNodeStatuses(g.nodeDeathInterval)
-			log.Info("Finished updating node statuses")
 		case <-g.done:
-			log.Info("updateStatusLoop now exiting")
 			return
 		}
 	}
@@ -238,7 +232,6 @@ func (g *GossiperImpl) selectGossipPeer() string {
 
 	nodesLen := len(g.nodes)
 	if nodesLen == 0 {
-		log.Info("No peers to gossip with, returning")
 		return ""
 	}
 
