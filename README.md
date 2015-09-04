@@ -21,12 +21,10 @@ peers.
 // Get the current view of the world
 storeKeys = g.GetStoreKeys()
 for _, key := range storeKeys.List {
-	nodeInfoList := g.GetStoreKeyValue(key)
-	for _,  nodeInfo := nodeInfoList.List {
-		// node_info_list is an array, to be indexed
-		// by node id. Valid nodes can be identified
-		// by the following:
-		//    node_info.Status != types.NODE_STATUS_INVALID
+	nodeInfoMap := g.GetStoreKeyValue(key)
+	for id,  nodeInfo := nodeInfoList.List {
+		// if nodeInfo.Status != types.NODE_STATUS_INVALID
+        // then nodeInfo has valid data.
 	}
 }
 
