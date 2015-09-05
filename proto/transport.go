@@ -92,8 +92,6 @@ func (c *ConnObj) write(buf []byte) error {
 		if err != nil && err != syscall.EINTR {
 			log.Error("Write failed: ", err)
 			return err
-		} else {
-			log.Info("Written bytes: ", l)
 		}
 		buf = buf[l:]
 	}
@@ -144,7 +142,6 @@ func (c *ConnObj) RcvData(msg interface{}) error {
 
 	for {
 		// first read the header
-		log.Info("Reading header")
 		var header uint64
 		headerLen, err := io.CopyN(msgBuffer, c.conn, HEADER_LENGTH)
 		if err != nil {
@@ -159,7 +156,6 @@ func (c *ConnObj) RcvData(msg interface{}) error {
 
 		// now read the data
 		msgBuffer.Reset()
-		log.Info("Reading data of size: ", header, " bytes")
 		_, err = io.CopyN(msgBuffer, c.conn, int64(header))
 		if err != nil && err != syscall.EINTR {
 			log.Error("Error reading data from peer:", err)
@@ -172,7 +168,6 @@ func (c *ConnObj) RcvData(msg interface{}) error {
 			log.Warn("Received bad packet:", err)
 			return err
 		} else {
-			log.Info("Finished reading")
 			break
 		}
 	}
