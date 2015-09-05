@@ -64,7 +64,6 @@ func (c *ConnObj) RunOnRcvData() {
 	defer c.listener.Close()
 
 	for {
-		log.Println("Listening on: " + c.ip)
 		tcpConn, err := l.Accept()
 		if err != nil {
 			log.Println("Error accepting: ", err)
