@@ -248,7 +248,6 @@ func (g *GossiperImpl) gossip() {
 
 	conn := NewMessageChannel(peerNode)
 	if conn == nil {
-		log.Error("Peer " + peerNode + " unavailable to gossip")
 		//XXX: FIXME : note that the peer is down
 		return
 	}

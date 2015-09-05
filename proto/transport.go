@@ -39,7 +39,6 @@ func NewMessageChannel(ip string) types.MessageChannel {
 	// if ip string is localhost and any port,
 	c, err := net.Dial(CONN_TYPE, connectionString(ip))
 	if err != nil {
-		log.Error("Error connecting to ", ip, " : ", err)
 		return nil
 	}
 	return &ConnObj{conn: c, listener: nil}
