@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/gob"
-	log "github.com/Sirupsen/logrus"
 	"io"
 	"net"
 	"os"
 	"strings"
 	"syscall"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/libopenstorage/gossip/types"
 )
 
@@ -22,10 +22,23 @@ const (
 )
 
 type ConnObj struct {
-	ip         string
+	Ip         string
 	rcvHandler types.OnMessageRcv
 	conn       net.Conn
 	listener   net.Listener
+}
+
+func transportLog(conn *ConnObj, function string, err error) *log.Entry {
+	connString := "nil"
+	if conn != nil {
+		connString = conn.Ip
+	}
+
+	return log.WithFields(log.Fields{
+		"Function": function,
+		"Conn":     connString,
+		"Error":    err,
+	})
 }
 
 func connectionString(ip string) string {
@@ -49,14 +62,14 @@ func NewRunnableMessageChannel(addr string,
 	if addr == "" {
 		addr = CONN_HOST + ":" + CONN_PORT
 	}
-	return &ConnObj{ip: connectionString(addr), rcvHandler: f}
+	return &ConnObj{Ip: connectionString(addr), rcvHandler: f}
 }
 
 func (c *ConnObj) RunOnRcvData() {
-
-	l, err := net.Listen(CONN_TYPE, c.ip)
+	fn := "RunOnRcvData"
+	l, err := net.Listen(CONN_TYPE, c.Ip)
 	if err != nil {
-		log.Println("Error listening: ", err.Error())
+		transportLog(c, fn, err).Error("Error listening")
 		os.Exit(1)
 	}
 	c.listener = l
@@ -65,10 +78,10 @@ func (c *ConnObj) RunOnRcvData() {
 	for {
 		tcpConn, err := l.Accept()
 		if err != nil {
-			log.Println("Error accepting: ", err)
+			transportLog(c, fn, err).Error("Error in Accept")
 			return
 		}
-		connObj := &ConnObj{ip: c.ip, conn: tcpConn,
+		connObj := &ConnObj{Ip: c.Ip, conn: tcpConn,
 			rcvHandler: c.rcvHandler}
 		connObj.rcvHandler(connObj)
 		connObj.Close()
@@ -85,10 +98,11 @@ func (c *ConnObj) Close() {
 }
 
 func (c *ConnObj) write(buf []byte) error {
+
 	for len(buf) > 0 {
 		l, err := c.conn.Write(buf)
 		if err != nil && err != syscall.EINTR {
-			log.Error("Write failed: ", err)
+			transportLog(c, "write", err).Error("Write failed")
 			return err
 		}
 		buf = buf[l:]
@@ -101,13 +115,14 @@ func (c *ConnObj) write(buf []byte) error {
 // it over the given connection. Returns nil if
 // it was successful, error otherwise
 func (c *ConnObj) SendData(obj interface{}) error {
+	fn := "SendData"
 	err := error(nil)
 
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	err = enc.Encode(obj)
 	if err != nil {
-		log.Error("Failed to serialize message", err)
+		transportLog(c, fn, err).Error("Failed to serialize message")
 		return err
 	}
 
@@ -117,14 +132,14 @@ func (c *ConnObj) SendData(obj interface{}) error {
 	// first send out the header
 	err = c.write(headerBuf)
 	if err != nil {
-		log.Error("Writing header failed with error: ", err)
+		transportLog(c, fn, err).Error("Writing header failed with error")
 		return err
 	}
 
 	// now send the actual data
 	err = c.write(buf.Bytes())
 	if err != nil {
-		log.Error("Writing header failed with error: ", err)
+		transportLog(c, fn, err).Error("Writing header failed with error")
 		return err
 	}
 
@@ -136,6 +151,7 @@ func (c *ConnObj) SendData(obj interface{}) error {
 // pointer to the object which will receive the data.
 // Returns nil if it was successful, error otherwise.
 func (c *ConnObj) RcvData(msg interface{}) error {
+	fn := "RcvData"
 	msgBuffer := new(bytes.Buffer)
 
 	for {
@@ -143,11 +159,12 @@ func (c *ConnObj) RcvData(msg interface{}) error {
 		var header uint64
 		headerLen, err := io.CopyN(msgBuffer, c.conn, HEADER_LENGTH)
 		if err != nil {
-			log.Error("Error reading the header: ", err)
+			transportLog(c, fn, err).Error("Error reading the header")
 			return err
 		}
 		if headerLen != HEADER_LENGTH {
-			log.Error("Error reading header, read only ", headerLen, " bytes")
+			transportLog(c, fn, err).Error("Error reading header, read only ",
+				headerLen, " bytes")
 			return err
 		}
 		header = uint64(binary.LittleEndian.Uint64(msgBuffer.Bytes()))
@@ -156,14 +173,14 @@ func (c *ConnObj) RcvData(msg interface{}) error {
 		msgBuffer.Reset()
 		_, err = io.CopyN(msgBuffer, c.conn, int64(header))
 		if err != nil && err != syscall.EINTR {
-			log.Error("Error reading data from peer:", err)
+			transportLog(c, fn, err).Error("Error reading data from peer")
 			return err
 		}
 
 		dec := gob.NewDecoder(msgBuffer)
 		err = dec.Decode(msg)
 		if err != nil {
-			log.Warn("Received bad packet:", err)
+			transportLog(c, fn, err).Error("Received bad packet")
 			return err
 		} else {
 			break

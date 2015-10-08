@@ -147,11 +147,11 @@ func (g *GossiperImpl) sendUpdatesToPeer(diff *types.StoreNodes,
 }
 
 func (g *GossiperImpl) handleGossip(conn types.MessageChannel) {
-	log.Debug(g.id, " servicing gossip request")
+	log.Debug(g.id, " Servicing gossip request")
 	var peerMetaInfo types.StoreMetaInfo
 	err := error(nil)
 
-	// 1. Get the info about the node data that the sender has
+	// Get the info about the node data that the sender has
 	err = conn.RcvData(&peerMetaInfo)
 	log.Debug(g.id, " Got meta data: \n", peerMetaInfo)
 	if err != nil {
@@ -164,7 +164,7 @@ func (g *GossiperImpl) handleGossip(conn types.MessageChannel) {
 	diffNew, selfNew := g.Diff(peerMetaInfo)
 	log.Debug(g.id, " The diff is: diffNew: \n", diffNew, " \nselfNew:\n", selfNew)
 
-	// 3. Send this list to the peer, and get the latest data
+	// Send this list to the peer, and get the latest data
 	// for them
 	err = conn.SendData(diffNew)
 	if err != nil {
@@ -172,19 +172,20 @@ func (g *GossiperImpl) handleGossip(conn types.MessageChannel) {
 		return
 	}
 
-	// 4. get the data for nodes sent above from the peer
+	// get the data for nodes sent above from the peer
 	err = g.getUpdatesFromPeer(conn)
 	if err != nil {
 		log.Error("Failed to get data for nodes from the peer: ", err)
 		return
 	}
 
-	// 4. Since you know which data is stale on the sender side,
-	//    send him the data for the updated nodes
+	// Since you know which data is stale on the sender side,
+	// send him the data for the updated nodes
 	err = g.sendUpdatesToPeer(&selfNew, conn)
 	if err != nil {
 		return
 	}
+	log.Debug(g.id, " Finished Servicing gossip request")
 }
 
 func (g *GossiperImpl) receiveLoop() {
@@ -245,6 +246,7 @@ func (g *GossiperImpl) gossip() {
 	if len(peerNode) == 0 {
 		return
 	}
+	log.Debug("Starting gossip with ", peerNode)
 
 	conn := NewMessageChannel(peerNode)
 	if conn == nil {
@@ -284,5 +286,6 @@ func (g *GossiperImpl) gossip() {
 		//XXX: FIXME : note that the peer is down
 		return
 	}
+	log.Debug("Ending gossip with ", peerNode)
 
 }

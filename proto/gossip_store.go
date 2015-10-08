@@ -250,9 +250,13 @@ func (s *GossipStoreImpl) UpdateNodeStatuses(d time.Duration) {
 
 	for _, nodeValue := range s.kvMap {
 		for id, _ := range nodeValue {
+			currTime := time.Now()
+			timeDiff := currTime.Sub(nodeValue[id].LastUpdateTs)
 			if nodeValue[id].Status != types.NODE_STATUS_INVALID &&
-				id != s.id &&
-				(time.Now().Sub(nodeValue[id].LastUpdateTs)) >= d {
+				id != s.id && timeDiff >= d {
+				log.Debugf("Marking node %s down since time diff %v is greater "+
+					"than %v, its last update time was %v and current time is"+
+					" %v", id, timeDiff, d, nodeValue[id].LastUpdateTs, currTime)
 				nodeInfo := nodeValue[id]
 				nodeInfo.Status = types.NODE_STATUS_DOWN
 				nodeValue[id] = nodeInfo

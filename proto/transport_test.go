@@ -29,7 +29,7 @@ func TestTransportSendAndRcvData(t *testing.T) {
 		}
 	}
 
-	ipString := "0.0.0.0:9002"
+	ipString := "0.0.0.0:19002"
 	r := NewRunnableMessageChannel(ipString, handler)
 	go r.RunOnRcvData()
 	time.Sleep(1 * time.Second)
