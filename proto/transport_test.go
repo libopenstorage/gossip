@@ -1,6 +1,7 @@
 package proto
 
 import (
+	"fmt"
 	"github.com/libopenstorage/gossip/types"
 	"strconv"
 	"testing"
@@ -76,7 +77,8 @@ func TestTransportFailures(t *testing.T) {
 		return
 	}
 
-	ipString := "0.0.0.0:17006"
+	fmt.Println("Close without sending data")
+	ipString := "0.0.0.0:17016"
 	r := NewRunnableMessageChannel(ipString, handler)
 	go r.RunOnRcvData()
 	time.Sleep(5 * time.Second)
@@ -100,7 +102,10 @@ func TestTransportFailures(t *testing.T) {
 	r.Close()
 	time.Sleep(10 * time.Millisecond)
 
+	fmt.Println("Close the channel and then send")
 	// open and then close the channel
+	ipString = "0.0.0.0:17017"
+	r = NewRunnableMessageChannel(ipString, handler)
 	go r.RunOnRcvData()
 	time.Sleep(1 * time.Second)
 	r.Close()
@@ -111,7 +116,10 @@ func TestTransportFailures(t *testing.T) {
 		t.Error("Error, expected nil sender")
 	}
 
+	fmt.Println("Send non-marshalable data")
 	// try sending non-marshabable data
+	ipString = "0.0.0.0:17018"
+	r = NewRunnableMessageChannel(ipString, handler)
 	go r.RunOnRcvData()
 	time.Sleep(1 * time.Second)
 	s = NewMessageChannel(ipString)

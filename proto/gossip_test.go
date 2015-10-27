@@ -13,6 +13,7 @@ import (
 func NewGossiperImpl(ip string, selfNodeId types.NodeId) *GossiperImpl {
 	g := new(GossiperImpl)
 	g.Init(ip, selfNodeId)
+	g.Start()
 	return g
 }
 
