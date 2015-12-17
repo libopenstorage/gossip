@@ -39,7 +39,8 @@ func TestTransportSendAndRcvData(t *testing.T) {
 	for i, key := range keyList {
 		var node types.NodeInfo
 		node.Id = types.NodeId(i)
-		node.Value = "some data"
+		node.Value = make(types.StoreMap)
+		node.Value[key] = "some data"
 		data1.Data[key] = node
 	}
 
@@ -87,7 +88,8 @@ func TestTransportFailures(t *testing.T) {
 	for i, key := range keyList {
 		var node types.NodeInfo
 		node.Id = types.NodeId(i)
-		node.Value = "some data"
+		node.Value = make(types.StoreMap)
+		node.Value[key] = "some data"
 		data1.Data[key] = node
 	}
 
@@ -133,6 +135,21 @@ func TestTransportFailures(t *testing.T) {
 	}
 	s.Close()
 	r.Close()
+}
+
+func compareNodeValues(n1 types.NodeInfo, n2 types.NodeInfo, t *testing.T) {
+	if len(n1.Value) != len(n2.Value) {
+		t.Error("Nodes are un-equal n1:", n1, " n2:", n2)
+	}
+	for key, value := range n1.Value {
+		value2, ok := n2.Value[key]
+		if !ok {
+			t.Error("Nodes are un-equal n1:", n1.Value, " n2:", n2.Value)
+		}
+		if value != value2 {
+			t.Error("Nodes are un-equal n1:", n1.Value, " n2:", n2.Value)
+		}
+	}
 }
 
 func TestTransportTwoWayExchange(t *testing.T) {
@@ -186,7 +203,8 @@ func TestTransportTwoWayExchange(t *testing.T) {
 	for i, key := range keyList {
 		var node types.NodeInfo
 		node.Id = types.NodeId(i)
-		node.Value = "some data"
+		node.Value = make(types.StoreMap)
+		node.Value[key] = "some data"
 		data1.Data[key] = node
 	}
 
@@ -239,13 +257,9 @@ func TestTransportTwoWayExchange(t *testing.T) {
 				"\nData3:", nodeInfo3, "\nData4:", nodeInfo4)
 		}
 
-		if nodeInfo2.Value != nodeInfo.Value ||
-			nodeInfo3.Value != nodeInfo.Value ||
-			nodeInfo4.Value != nodeInfo.Value {
-			t.Error("Data mismatch, Data1: ",
-				nodeInfo, "\nData2:", nodeInfo2,
-				"\nData3:", nodeInfo3, "\nData4:", nodeInfo4)
-		}
+		compareNodeValues(nodeInfo2, nodeInfo, t)
+		compareNodeValues(nodeInfo3, nodeInfo, t)
+		compareNodeValues(nodeInfo4, nodeInfo, t)
 	}
 
 	s.Close()

@@ -12,29 +12,31 @@ import (
 // which identifies itself with the given ip
 func NewGossiperImpl(ip string, selfNodeId types.NodeId) *GossiperImpl {
 	g := new(GossiperImpl)
-	g.Init(ip, selfNodeId)
+	g.Init(ip, selfNodeId, 1)
 	g.Start()
 	return g
 }
 
 func TestGossiperAddRemoveGetNode(t *testing.T) {
 	printTestInfo()
-	g := NewGossiperImpl("0.0.0.0:9010", "1")
+	g := NewGossiperImpl("0.0.0.0:9010", "0")
 
 	nodes := []string{"0.0.0.0:90011",
 		"0.0.0.0:90012", "0.0.0.0:90013",
 		"0.0.0.0:90014"}
 
 	// test add nodes
+	i := 1
 	for _, node := range nodes {
-		err := g.AddNode(node)
+		err := g.AddNode(node, types.NodeId(strconv.Itoa(i)))
 		if err != nil {
 			t.Error("Error adding new node")
 		}
+		i++
 	}
 
 	// try adding existing node
-	err := g.AddNode(nodes[0])
+	err := g.AddNode(nodes[0], types.NodeId(strconv.Itoa(1)))
 	if err == nil {
 		t.Error("Duplicate node addition did not fail")
 	}
@@ -70,6 +72,238 @@ outer:
 	}
 
 	g.Stop()
+}
+
+func TestGossiperOneNodeNeverGossips(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{"0.0.0.0:9222", "0.0.0.0:9223",
+		"0.0.0.0:9224"}
+
+	rand.Seed(time.Now().UnixNano())
+	gossipers := make(map[int]*GossiperImpl)
+	for i, nodeId := range nodes {
+		if i == 0 {
+			// node 0 never comes up
+			continue
+		}
+		id := types.NodeId(strconv.Itoa(i))
+		g := NewGossiperImpl(nodeId, id)
+		g.SetGossipInterval(time.Duration(200+rand.Intn(200)) * time.Millisecond)
+		for j, peer := range nodes {
+			if i == j {
+				continue
+			}
+			g.AddNode(peer, types.NodeId(j))
+		}
+		gossipers[i] = g
+	}
+
+	// each node must mark node 0 as down
+	key := types.StoreKey("somekey")
+	value := "someValue"
+	for i, g := range gossipers {
+		g.UpdateSelf(key, value+strconv.Itoa(i))
+	}
+
+	for i, g := range gossipers {
+		res := g.GetStoreKeyValue(key)
+		for nodeId, n := range res {
+			if nodeId != n.Id {
+				t.Error("Gossiper ", i, "Id does not match ",
+					nodeId, " n:", n.Id)
+			}
+			nid, ok := strconv.Atoi(string(nodeId))
+			if ok != nil {
+				t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+			}
+			if nid == 0 {
+				if n.Status == types.NODE_STATUS_DOWN {
+					t.Error("Gossiper ", i,
+						"Expected node status not to be down: ", nodeId, " n:", n)
+				}
+			}
+		}
+	}
+
+	time.Sleep(2 * time.Second)
+	for i, g := range gossipers {
+		res := g.GetStoreKeyValue(key)
+		for nodeId, n := range res {
+			if nodeId != n.Id {
+				t.Error("Gossiper ", i, "Id does not match ",
+					nodeId, " n:", n.Id)
+			}
+			nid, ok := strconv.Atoi(string(nodeId))
+			if ok != nil {
+				t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+			}
+			if nid == 0 {
+				if n.Status != types.NODE_STATUS_DOWN {
+					t.Error("Gossiper ", i,
+						"Expected node status to be down: ", nodeId, " n:", n)
+				}
+			} else {
+				if n.Status != types.NODE_STATUS_UP {
+					t.Error("Gossiper ", i, "Expected node to be up: ", nodeId,
+						" n:", n)
+				}
+			}
+		}
+	}
+
+	for _, g := range gossipers {
+		g.Stop()
+	}
+}
+
+func TestGossiperGossipMarkOldGenNode(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{"0.0.0.0:9225", "0.0.0.0:9226", "0.0.0.0:9227"}
+
+	rand.Seed(time.Now().UnixNano())
+	gossipers := make(map[int]*GossiperImpl)
+	for i, nodeId := range nodes {
+		if i == 0 {
+			// node 0 never comes up
+			continue
+		}
+		id := types.NodeId(strconv.Itoa(i))
+		g := NewGossiperImpl(nodeId, id)
+		g.SetGossipInterval(time.Duration(200+rand.Intn(200)) * time.Millisecond)
+		for j, peer := range nodes {
+			if i == j {
+				continue
+			}
+			g.AddNode(peer, types.NodeId(j))
+		}
+		gossipers[i] = g
+	}
+
+	// each node must mark node 0 as down
+	key := types.StoreKey("somekey")
+	value := "someValue"
+	for i, g := range gossipers {
+		g.UpdateSelf(key, value+strconv.Itoa(i))
+	}
+
+	for i, g := range gossipers {
+		res := g.GetStoreKeyValue(key)
+		for nodeId, n := range res {
+			if nodeId != n.Id {
+				t.Error("Gossiper ", i, "Id does not match ",
+					nodeId, " n:", n.Id)
+			}
+			nid, ok := strconv.Atoi(string(nodeId))
+			if ok != nil {
+				t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+			}
+			if nid == 0 {
+				if n.Status == types.NODE_STATUS_DOWN {
+					t.Error("Gossiper ", i,
+						"Expected node status not to be down: ", nodeId, " n:", n)
+				}
+			}
+		}
+	}
+
+	time.Sleep(2 * time.Second)
+	for i, g := range gossipers {
+		res := g.GetStoreKeyValue(key)
+		for nodeId, n := range res {
+			if nodeId != n.Id {
+				t.Error("Gossiper ", i, "Id does not match ",
+					nodeId, " n:", n.Id)
+			}
+			nid, ok := strconv.Atoi(string(nodeId))
+			if ok != nil {
+				t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+			}
+			if nid == 0 {
+				if n.Status != types.NODE_STATUS_DOWN {
+					t.Error("Gossiper ", i,
+						"Expected node status to be down: ", nodeId, " n:", n)
+				}
+			} else {
+				if n.Status != types.NODE_STATUS_UP {
+					t.Error("Gossiper ", i, "Expected node to be up: ", nodeId,
+						" n:", n)
+				}
+			}
+		}
+	}
+
+	// Now Reset both node 0 and node 1 in node 2.
+	nid0 := types.NodeId(strconv.Itoa(0))
+	nid1 := types.NodeId(strconv.Itoa(1))
+	nid2 := types.NodeId(strconv.Itoa(2))
+
+	g, _ := gossipers[2]
+	g.MarkNodeHasOldGen(nid0)
+	g.MarkNodeHasOldGen(nid1)
+	// Update value in node 1
+	g, _ = gossipers[1]
+	g.UpdateSelf(key, value+"__1")
+
+	// Node must be up now
+	g, _ = gossipers[2]
+	res := g.GetStoreKeyValue(key)
+	for nodeId, n := range res {
+		if nid2 == nodeId {
+			continue
+		}
+		if nodeId != n.Id {
+			t.Error("Id does not match ", nodeId, " n:", n.Id)
+		}
+		_, ok := strconv.Atoi(string(nodeId))
+		if ok != nil {
+			t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+		}
+		if n.Status != types.NODE_STATUS_WAITING_FOR_NEW_UPDATE {
+			t.Error("Expected node status to be down: ", nodeId, " n:", n)
+		}
+	}
+
+	time.Sleep(800 * time.Millisecond)
+	res = g.GetStoreKeyValue(key)
+	g1Node, _ := res[nid1]
+	if g1Node.Status != types.NODE_STATUS_UP {
+		t.Error("Expected node to be up ", g1Node)
+	}
+
+	// Sleep for 15*(node death interval) i.e. 15*400 mil i.e. 6 seconds
+	// , both nodes must me marked down
+	time.Sleep(35 * time.Second)
+	res = g.GetStoreKeyValue(key)
+	for nodeId, n := range res {
+		if nid2 == nodeId {
+			continue
+		}
+		if nodeId != n.Id {
+			t.Error("Id does not match ", nodeId, " n:", n.Id)
+		}
+		_, ok := strconv.Atoi(string(nodeId))
+		if ok != nil {
+			t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+		}
+		if n.Status != types.NODE_STATUS_DOWN {
+			t.Error("Expected node to be down: ", nodeId, " n:", n)
+		}
+	}
+
+	// Test that the node does not is marked down after reset
+	g.MarkNodeHasOldGen(nid1)
+	time.Sleep(35 * time.Second)
+	res = g.GetStoreKeyValue(key)
+	g1Node, _ = res[nid1]
+	if g1Node.Status != types.NODE_STATUS_DOWN_WAITING_FOR_NEW_UPDATE {
+		t.Error("Expected node to be down waiting for update ", g1Node)
+	}
+
+	for _, g := range gossipers {
+		g.Stop()
+	}
 }
 
 func TestGossiperMisc(t *testing.T) {
@@ -150,18 +384,18 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[string]*GossiperImpl)
 	for i, nodeId := range nodes {
-		g := NewGossiperImpl(nodeId, types.NodeId(i))
+		g := NewGossiperImpl(nodeId, types.NodeId(strconv.Itoa(i)))
 
 		g.SetGossipInterval(time.Duration(1500+rand.Intn(200)) * time.Millisecond)
 		// add one neighbor and 2 random peers
 		if i < len(nodes)-1 {
-			err := g.AddNode(nodes[i+1])
+			err := g.AddNode(nodes[i+1], types.NodeId(strconv.Itoa(i)))
 			if err != nil {
 				t.Error("Unexpected error adding node to id: ", nodeId,
 					" node: ", nodes[i+1])
 			}
 		} else {
-			err := g.AddNode(nodes[0])
+			err := g.AddNode(nodes[0], types.NodeId(strconv.Itoa(0)))
 			if err != nil {
 				t.Error("Unexpected error adding node to id: ", nodeId,
 					" node: ", nodes[0])
@@ -175,7 +409,7 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 				continue
 			}
 
-			err := g.AddNode(nodes[randId])
+			err := g.AddNode(nodes[randId], types.NodeId(strconv.Itoa(randId)))
 			if err != nil {
 				t.Log("Unexpected error adding node to id: ", nodeId,
 					" node: ", nodes[randId], " err: ", err)
