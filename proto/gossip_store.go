@@ -267,10 +267,10 @@ func (s *GossipStoreImpl) UpdateNodeStatuses(d time.Duration, sd time.Duration) 
 			} // else node is marked up
 		}
 		if nodeInfo.Status != nodeStatus {
-			log.Warnf(" Marking node %s down since time diff %v is greater "+
-				"than %v, its last update time was %v and current time is"+
-				" %v node: %v new status %v", id, timeDiff, d, nodeInfo.LastUpdateTs, currTime,
-				nodeInfo, nodeStatus)
+			log.Warnf("Gossip Status change: for node: %v newStatus: %v "+
+				", time diff: %v , limit: %v, its last update time "+
+				"was %v and current time is %v",
+				nodeStatus, id, timeDiff, d, nodeInfo.LastUpdateTs, currTime)
 		}
 		if nodeInfo.Status != nodeStatus {
 			nodeInfo.Status = nodeStatus
