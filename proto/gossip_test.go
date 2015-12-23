@@ -13,8 +13,56 @@ import (
 func NewGossiperImpl(ip string, selfNodeId types.NodeId) *GossiperImpl {
 	g := new(GossiperImpl)
 	g.Init(ip, selfNodeId, 1)
+	g.selfCorrect = false
 	g.Start()
 	return g
+}
+
+func TestGossiperHistory(t *testing.T) {
+	var maxLen uint8 = 5
+	h := NewGossipHistory(maxLen)
+
+	for i := 0; i < 10; i++ {
+		h.AddLatest(NewGossipSessionInfo(strconv.Itoa(i), GD_ME_TO_PEER))
+	}
+
+	if h.nodes.Len() != int(maxLen) {
+		t.Error("Len mismatch h: ", h.nodes.Len(), " expected: ", maxLen)
+	}
+
+	p := h.nodes.Front()
+	p = nil
+	c := h.nodes.Front()
+	for ; c != nil; c = c.Next() {
+		if p != nil {
+			pEl, ok1 := p.Value.(*GossipSessionInfo)
+			cEl, ok2 := c.Value.(*GossipSessionInfo)
+			if !ok1 || !ok2 {
+				t.Error("Failed to get elements: p: ", p.Value, " c: ", c.Value)
+				continue
+			}
+
+			pId, ok3 := strconv.Atoi(pEl.node)
+			cId, ok4 := strconv.Atoi(cEl.node)
+
+			if ok3 != nil || ok4 != nil {
+				t.Error("Failed to get elements: p: ", p.Value, " c: ", c.Value)
+				continue
+			}
+
+			if pId < cId {
+				t.Error("Data maintained in wrong order ", p.Value, " c: ",
+					c.Value)
+			}
+
+			if pEl.ts.Before(cEl.ts) {
+				t.Error("Data maintained in wrong order ", p.Value, " c: ",
+					c.Value)
+			}
+		}
+		p = c
+	}
+
 }
 
 func TestGossiperAddRemoveGetNode(t *testing.T) {
@@ -171,6 +219,7 @@ func TestGossiperGossipMarkOldGenNode(t *testing.T) {
 		}
 		id := types.NodeId(strconv.Itoa(i))
 		g := NewGossiperImpl(nodeId, id)
+
 		g.SetGossipInterval(time.Duration(200+rand.Intn(200)) * time.Millisecond)
 		for j, peer := range nodes {
 			if i == j {
@@ -306,9 +355,14 @@ func TestGossiperGossipMarkOldGenNode(t *testing.T) {
 	}
 }
 
-func TestGossiperMisc(t *testing.T) {
+func TestGossiperZMisc(t *testing.T) {
 	printTestInfo()
 	g := NewGossiperImpl("0.0.0.0:9092", "1")
+	g.selfCorrect = true
+
+	key := types.StoreKey("someKey")
+	g.UpdateSelf(key, "1")
+	startTime := time.Now()
 
 	// get the default value
 	gossipIntvl := g.GossipInterval()
@@ -316,7 +370,7 @@ func TestGossiperMisc(t *testing.T) {
 		t.Error("Default gossip interval set to zero")
 	}
 
-	gossipDuration := 1 * time.Second
+	gossipDuration := 20 * time.Millisecond
 	g.SetGossipInterval(gossipDuration)
 	gossipIntvl = g.GossipInterval()
 	if gossipIntvl != gossipDuration {
@@ -329,7 +383,7 @@ func TestGossiperMisc(t *testing.T) {
 		t.Error("Default death interval set to zero")
 	}
 
-	deathDuration := 1 * time.Second
+	deathDuration := 20 * time.Millisecond
 	g.SetNodeDeathInterval(deathDuration)
 	deathIntvl = g.NodeDeathInterval()
 	if deathIntvl != deathDuration {
@@ -338,7 +392,21 @@ func TestGossiperMisc(t *testing.T) {
 
 	// stay up for more than gossip interval and check
 	// that we don't die because there is no one to gossip
-	time.Sleep(2 * gossipDuration)
+	time.Sleep(18 * gossipDuration)
+
+	// check that our value is self corrected
+	gValues := g.GetStoreKeyValue(key)
+	if len(gValues) > 1 {
+		t.Error("More values returned than request ", gValues)
+	}
+	nodeValue, ok := gValues["1"]
+	if !ok {
+		t.Error("Could not get node value for self node")
+	} else {
+		if !nodeValue.LastUpdateTs.After(startTime) {
+			t.Error("time not updated")
+		}
+	}
 
 	g.Stop()
 }

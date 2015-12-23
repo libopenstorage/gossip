@@ -17,7 +17,7 @@ type GossipStore interface {
 
 	// GetStoreValue returns the StoreValue associated with
 	// the given key
-	GetStoreKeyValue(key types.StoreKey) types.NodeInfoMap
+	GetStoreKeyValue(key types.StoreKey) types.NodeValueMap
 
 	// GetStoreKeys returns all the keys present in the store
 	GetStoreKeys() []types.StoreKey

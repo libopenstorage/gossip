@@ -174,10 +174,10 @@ func TestGossipStoreGetStoreKeyValue(t *testing.T) {
 			}
 			continue
 		}
-		infoMap := nodeInfoMap[id].Value
+		infoMap := nodeInfoMap[id].Value.(types.NodeId)
 		if nodeInfoMap[id].Id != id ||
 			nodeInfoMap[id].Status != types.NODE_STATUS_UP ||
-			infoMap[types.StoreKey(CPU+keyList[0])] != id {
+			infoMap != id {
 			t.Error("Invalid node content received, got: ", nodeInfoMap[id])
 		}
 	}

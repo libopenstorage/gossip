@@ -9,6 +9,7 @@ type NodeId string
 type StoreKey string
 type NodeStatus uint8
 type NodeInfoMap map[NodeId]NodeInfo
+type NodeValueMap map[NodeId]NodeValue
 type StoreMap map[StoreKey]interface{}
 
 const (
@@ -33,6 +34,14 @@ type NodeInfo struct {
 	WaitForGenUpdateTs time.Time
 	Status             NodeStatus
 	Value              StoreMap
+}
+
+type NodeValue struct {
+	Id           NodeId
+	GenNumber    uint64
+	LastUpdateTs time.Time
+	Status       NodeStatus
+	Value        interface{}
 }
 
 func (n NodeInfo) String() string {

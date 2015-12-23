@@ -72,8 +72,6 @@ func TestTransportFailures(t *testing.T) {
 		err := c.RcvData(&data2)
 		if err == nil {
 			t.Error("Did not receive expected error")
-		} else {
-			t.Log("Error receiving data: ", err)
 		}
 		return
 	}
@@ -106,12 +104,13 @@ func TestTransportFailures(t *testing.T) {
 
 	fmt.Println("Close the channel and then send")
 	// open and then close the channel
-	ipString = "0.0.0.0:17017"
+	ipString = "0.0.0.0:17617"
 	r = NewRunnableMessageChannel(ipString, handler)
 	go r.RunOnRcvData()
 	time.Sleep(1 * time.Second)
 	r.Close()
 
+	time.Sleep(2 * time.Second)
 	// try sending data to closed end
 	s = NewMessageChannel(ipString)
 	if s != nil {
@@ -120,7 +119,7 @@ func TestTransportFailures(t *testing.T) {
 
 	fmt.Println("Send non-marshalable data")
 	// try sending non-marshabable data
-	ipString = "0.0.0.0:17018"
+	ipString = "0.0.0.0:17418"
 	r = NewRunnableMessageChannel(ipString, handler)
 	go r.RunOnRcvData()
 	time.Sleep(1 * time.Second)
@@ -195,7 +194,7 @@ func TestTransportTwoWayExchange(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 
-	r := NewRunnableMessageChannel("", handler)
+	r := NewRunnableMessageChannel("0.0.0.0:19422", handler)
 	go r.RunOnRcvData()
 	time.Sleep(1 * time.Second)
 
@@ -208,7 +207,7 @@ func TestTransportTwoWayExchange(t *testing.T) {
 		data1.Data[key] = node
 	}
 
-	ipString := "0.0.0.0"
+	ipString := "0.0.0.0:19422"
 	s := NewMessageChannel(ipString)
 	if s == nil {
 		t.Fatal("Error creating send channel, failing test")
