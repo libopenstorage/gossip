@@ -21,6 +21,21 @@ const (
 	NODE_STATUS_DOWN_WAITING_FOR_NEW_UPDATE
 )
 
+type GossipDirection uint8
+
+const (
+	// Direction of gossip
+	GD_ME_TO_PEER GossipDirection = iota
+	GD_PEER_TO_ME
+)
+
+type GossipSessionInfo struct {
+	Node string
+	Ts   time.Time
+	Dir  GossipDirection
+	Err  error
+}
+
 type NodeMetaInfo struct {
 	Id           NodeId
 	GenNumber    uint64

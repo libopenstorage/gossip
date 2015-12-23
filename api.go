@@ -87,6 +87,9 @@ type Gossiper interface {
 	// GetNodes returns a list of the connection addresses
 	// added via AddNode
 	GetNodes() []string
+
+	// GetGossipHistory returns the gossip records for last 20 sessions.
+	GetGossipHistory() []*types.GossipSessionInfo
 }
 
 // New returns an initialized Gossip node

@@ -18,14 +18,6 @@ const (
 	DEFAULT_NODE_DEATH_INTERVAL = 15 * DEFAULT_GOSSIP_INTERVAL
 )
 
-type GossipDirection uint8
-
-const (
-	// Direction of gossip
-	GD_ME_TO_PEER GossipDirection = iota
-	GD_PEER_TO_ME
-)
-
 type GossipHistory struct {
 	// front is the latest, back is the last
 	nodes  *list.List
@@ -33,19 +25,13 @@ type GossipHistory struct {
 	maxLen uint8
 }
 
-type GossipSessionInfo struct {
-	node string
-	ts   time.Time
-	dir  GossipDirection
-	err  error
-}
-
-func NewGossipSessionInfo(node string, dir GossipDirection) *GossipSessionInfo {
-	gs := new(GossipSessionInfo)
-	gs.node = node
-	gs.dir = dir
-	gs.ts = time.Now()
-	gs.err = nil
+func NewGossipSessionInfo(node string,
+	dir types.GossipDirection) *types.GossipSessionInfo {
+	gs := new(types.GossipSessionInfo)
+	gs.Node = node
+	gs.Dir = dir
+	gs.Ts = time.Now()
+	gs.Err = nil
 	return gs
 }
 
@@ -57,13 +43,31 @@ func NewGossipHistory(maxLen uint8) *GossipHistory {
 	return s
 }
 
-func (s *GossipHistory) AddLatest(gs *GossipSessionInfo) {
+func (s *GossipHistory) AddLatest(gs *types.GossipSessionInfo) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	if uint8(s.nodes.Len()) == s.maxLen {
 		s.nodes.Remove(s.nodes.Back())
 	}
 	s.nodes.PushFront(gs)
+}
+
+func (s *GossipHistory) GetAllRecords() []*types.GossipSessionInfo {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	records := make([]*types.GossipSessionInfo, s.nodes.Len(), s.nodes.Len())
+	i := 0
+	for element := s.nodes.Front(); element != nil; element = element.Next() {
+		r, ok := element.Value.(*types.GossipSessionInfo)
+		if !ok {
+			log.Error("Failed to convert element: ", r)
+			continue
+		}
+		records[i] = &types.GossipSessionInfo{Node: r.Node,
+			Ts: r.Ts, Dir: r.Dir, Err: r.Err}
+		i++
+	}
+	return records
 }
 
 // Implements the UnreliableBroadcast interface
@@ -193,6 +197,10 @@ func (g *GossiperImpl) SetNodeDeathInterval(t time.Duration) {
 
 func (g *GossiperImpl) NodeDeathInterval() time.Duration {
 	return g.nodeDeathInterval
+}
+
+func (g *GossiperImpl) GetGossipHistory() []*types.GossipSessionInfo {
+	return g.history.GetAllRecords()
 }
 
 func (g *GossiperImpl) AddNode(ip string, id types.NodeId) error {
@@ -380,7 +388,7 @@ func (g *GossiperImpl) selectGossipPeer() string {
 	return g.nodes[peer]
 }
 
-func (g *GossiperImpl) gossip() *GossipSessionInfo {
+func (g *GossiperImpl) gossip() *types.GossipSessionInfo {
 
 	// select a node to gossip with
 	peerNode := g.selectGossipPeer()
@@ -389,19 +397,19 @@ func (g *GossiperImpl) gossip() *GossipSessionInfo {
 	}
 	log.Debug("Starting gossip with ", peerNode)
 
-	gs := NewGossipSessionInfo(peerNode, GD_ME_TO_PEER)
+	gs := NewGossipSessionInfo(peerNode, types.GD_ME_TO_PEER)
 
 	conn := NewMessageChannel(peerNode)
 	if conn == nil {
-		gs.err = errors.New("Could not connect to host")
+		gs.Err = errors.New("Could not connect to host")
 		return gs
 	}
 
 	// send meta data info about the node to the peer
 	err := g.sendNodeMetaInfo(conn)
 	if err != nil {
-		gs.err = errors.New("Failed to send meta info to the peer")
-		log.Error(gs.err)
+		gs.Err = errors.New("Failed to send meta info to the peer")
+		log.Error(gs.Err)
 		return gs
 	}
 
@@ -409,24 +417,24 @@ func (g *GossiperImpl) gossip() *GossipSessionInfo {
 	var diff types.StoreNodes
 	err = conn.RcvData(&diff)
 	if err != nil {
-		gs.err = errors.New("Failed to get request info to the peer")
-		log.Error(gs.err)
+		gs.Err = errors.New("Failed to get request info to the peer")
+		log.Error(gs.Err)
 		return gs
 	}
 
 	// send back the data
 	err = g.sendUpdatesToPeer(&diff, conn)
 	if err != nil {
-		gs.err = errors.New("Failed to send newer data to the peer")
-		log.Error(gs.err)
+		gs.Err = errors.New("Failed to send newer data to the peer")
+		log.Error(gs.Err)
 		return gs
 	}
 
 	// receive any updates the send has for us
 	err = g.getUpdatesFromPeer(conn)
 	if err != nil {
-		gs.err = errors.New("Failed to get newer data from the peer")
-		log.Error(gs.err)
+		gs.Err = errors.New("Failed to get newer data from the peer")
+		log.Error(gs.Err)
 		return gs
 	}
 	log.Debug("Ending gossip with ", peerNode)
