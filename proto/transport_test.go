@@ -21,10 +21,11 @@ func TestTransportSendAndRcvData(t *testing.T) {
 	data1.Data = make(map[types.StoreKey]types.NodeInfo)
 	data2.Data = make(map[types.StoreKey]types.NodeInfo)
 
-	var handler types.OnMessageRcv = func(c types.MessageChannel) {
+	var handler types.OnMessageRcv = func(peer string,
+		c types.MessageChannel) {
 		err := c.RcvData(&data2)
 		if err != nil {
-			t.Error("Error receiving data: ", err)
+			t.Error("Error receiving data: %v from peer %v", err, peer)
 		} else {
 			t.Log("Done receiving")
 		}
@@ -68,10 +69,11 @@ func TestTransportFailures(t *testing.T) {
 	data1.Data = make(map[types.StoreKey]types.NodeInfo)
 	data2.Data = make(map[types.StoreKey]types.NodeInfo)
 
-	var handler types.OnMessageRcv = func(c types.MessageChannel) {
+	var handler types.OnMessageRcv = func(peer string,
+		c types.MessageChannel) {
 		err := c.RcvData(&data2)
 		if err == nil {
-			t.Error("Did not receive expected error")
+			t.Error("Did not receive expected error from peer ", peer)
 		}
 		return
 	}
@@ -164,10 +166,11 @@ func TestTransportTwoWayExchange(t *testing.T) {
 	data3.Data = make(map[types.StoreKey]types.NodeInfo)
 	data4.Data = make(map[types.StoreKey]types.NodeInfo)
 
-	var handler types.OnMessageRcv = func(c types.MessageChannel) {
+	var handler types.OnMessageRcv = func(peer string,
+		c types.MessageChannel) {
 		err := c.RcvData(&data2)
 		if err != nil {
-			t.Error("Error receiving data2: ", err)
+			t.Errorf("Error receiving data2: %v from peer %v", err, peer)
 		} else {
 			t.Log("Done receiving")
 		}
