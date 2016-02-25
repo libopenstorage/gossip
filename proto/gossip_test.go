@@ -72,9 +72,9 @@ func TestGossiperAddRemoveGetNode(t *testing.T) {
 	printTestInfo()
 	g := NewGossiperImpl("0.0.0.0:9010", "0")
 
-	nodes := []string{"0.0.0.0:90011",
-		"0.0.0.0:90012", "0.0.0.0:90013",
-		"0.0.0.0:90014"}
+	nodes := []string{"0.0.0.0:9011",
+		"0.0.0.0:9012", "0.0.0.0:9013",
+		"0.0.0.0:9014"}
 
 	// test add nodes
 	i := 1
@@ -205,6 +205,93 @@ func TestGossiperOneNodeNeverGossips(t *testing.T) {
 
 	for _, g := range gossipers {
 		g.Stop()
+	}
+}
+
+func TestGossiperUpdateNodeIp(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{"0.0.0.0:9325", "0.0.0.0:9326", "0.0.0.0:9327"}
+
+	rand.Seed(time.Now().UnixNano())
+	gossipers := make(map[int]*GossiperImpl)
+	for i, nodeId := range nodes {
+		id := types.NodeId(strconv.Itoa(i))
+		g := NewGossiperImpl(nodeId, id)
+
+		g.SetGossipInterval(time.Duration(200+rand.Intn(200)) * time.Millisecond)
+		for j, peer := range nodes {
+			if i == j {
+				continue
+			}
+			peerIp := peer
+			if j == 0 {
+				peerIp = "0.0.0.0:11000"
+			}
+			g.AddNode(peerIp, types.NodeId(j))
+		}
+		gossipers[i] = g
+	}
+
+	// each node must mark node 0 as down
+	key := types.StoreKey("somekey")
+	value := "someValue"
+	for i, g := range gossipers {
+		g.UpdateSelf(key, value+strconv.Itoa(i))
+	}
+
+	for k := 0; k < 3; k++ {
+		time.Sleep(2 * time.Second)
+		if k == 1 {
+			for i, g := range gossipers {
+				if i == 0 {
+					continue
+				}
+				err := g.UpdateNode(nodes[0], types.NodeId(0))
+				if err != nil {
+					t.Error("Error updating node ", i, " : ", err)
+				}
+			}
+
+			for i, g := range gossipers {
+				peerNodes := g.GetNodes()
+				if len(peerNodes) != len(nodes)-1 {
+					t.Error("Peer nodes len does not match added nodes, got: ",
+						peerNodes, " expected: ", nodes)
+				}
+				for _, node := range peerNodes {
+					found := false
+					for _, origNode := range nodes {
+						if origNode == node {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Error("Could not find node ", node,
+							", for gossiper ", i)
+					}
+				}
+			}
+		}
+		for i, g := range gossipers {
+			res := g.GetStoreKeyValue(key)
+			for nodeId, n := range res {
+				if nodeId != n.Id {
+					t.Error("Gossiper ", i, "Id does not match ",
+						nodeId, " n:", n.Id)
+				}
+				_, ok := strconv.Atoi(string(nodeId))
+				if ok != nil {
+					t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+				}
+				// All nodes must be up
+				if n.Status != types.NODE_STATUS_UP {
+					t.Error("Gossiper ", i,
+						"Expected node status to be up: ", nodeId, " n:", n)
+				}
+			}
+		}
 	}
 }
 
