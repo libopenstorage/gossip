@@ -125,11 +125,62 @@ outer:
 	g.Stop()
 }
 
-func TestGossiperOneNodeNeverGossips(t *testing.T) {
+func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 	printTestInfo()
 
 	nodes := []string{"0.0.0.0:9222", "0.0.0.0:9223",
 		"0.0.0.0:9224"}
+
+	rand.Seed(time.Now().UnixNano())
+	id := types.NodeId(strconv.Itoa(0))
+	gZero := NewGossiperImpl(nodes[0], id)
+	gZero.SetGossipInterval(200 * time.Millisecond)
+	gZero.SetNodeDeathInterval(200 * time.Millisecond)
+	for j, peer := range nodes {
+		if j == 0 {
+			continue
+		}
+		gZero.AddNode(peer, types.NodeId(strconv.Itoa(j)))
+	}
+
+	// each node must mark node 0 as down
+	key := types.StoreKey("somekey")
+	value := "someValue"
+	gZero.UpdateSelf(key, value)
+
+	time.Sleep(5 * time.Second)
+
+	res := gZero.GetStoreKeyValue(key)
+	if len(res) != 3 {
+		t.Error("Nodes down not reported ", res)
+	}
+
+	for nodeId, n := range res {
+		if nodeId != n.Id {
+			t.Error("Gossiper Id does not match ",
+				nodeId, " n:", n.Id)
+		}
+		nid, ok := strconv.Atoi(string(nodeId))
+		if ok != nil {
+			t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+		}
+		t.Log("Node id is ", nid)
+		if nid != 0 {
+			if n.Status != types.NODE_STATUS_DOWN {
+				t.Error("Gossiper ", nid,
+					"Expected node status not to be down: ", nodeId, " n:", n)
+			}
+		}
+	}
+
+	gZero.Stop()
+}
+
+func TestGossiperOneNodeNeverGossips(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{"0.0.0.0:9622", "0.0.0.0:9623",
+		"0.0.0.0:9624"}
 
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
@@ -504,15 +555,12 @@ func TestGossiperZMisc(t *testing.T) {
 func verifyGossiperEquality(g1 *GossiperImpl, g2 *GossiperImpl, t *testing.T) {
 	// check for the equality
 	g1Keys := g1.GetStoreKeys()
-	g2Keys := g2.GetStoreKeys()
-	if len(g1Keys) != len(g2Keys) {
-		t.Error("Keys mismatch, g1: ", g1Keys, " g2:", g2Keys)
-	}
 
 	for _, key := range g1Keys {
 		g1Values := g1.GetStoreKeyValue(key)
 		g2Values := g1.GetStoreKeyValue(key)
 
+		t.Log("Key: ", key)
 		t.Log("g1Values: ", g1Values)
 		t.Log("g2Values: ", g2Values)
 
@@ -546,7 +594,7 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 
 		g.SetGossipInterval(time.Duration(1500+rand.Intn(200)) * time.Millisecond)
 		// add one neighbor and 2 random peers
-		if i < len(nodes)-1 {
+		if i < len(nodes)-2 {
 			err := g.AddNode(nodes[i+1], types.NodeId(strconv.Itoa(i)))
 			if err != nil {
 				t.Error("Unexpected error adding node to id: ", nodeId,
@@ -581,7 +629,7 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 
 	updateFunc := func(g *GossiperImpl, id string, max int, t *testing.T) {
 		for i := 0; i < max; i++ {
-			t.Log("Updting data for ", id)
+			t.Log("Updting data for ", g.NodeId())
 			g.UpdateSelf("sameKey", strconv.Itoa(i))
 			g.UpdateSelf(types.StoreKey(g.NodeId()), strconv.Itoa(i*i))
 			time.Sleep(g.GossipInterval() + time.Duration(rand.Intn(100)))
@@ -620,6 +668,7 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 		if ok == false {
 			shutdownNodes[randId] = true
 			gossipers[nodes[randId]].Stop()
+			t.Log("Shutdown node ", nodes[randId])
 			if len(shutdownNodes) == 3 {
 				break
 			}
