@@ -147,8 +147,8 @@ func TestGossipStoreGetStoreKeyValue(t *testing.T) {
 	keyList := []types.StoreKey{"key1", "key2"}
 
 	nodeInfoMap := g.GetStoreKeyValue(keyList[0])
-	if len(nodeInfoMap) != 0 {
-		t.Error("Expected empty node info list, got: ", nodeInfoMap)
+	if len(nodeInfoMap) != 1 {
+		t.Error("Expected self node info list, got: ", nodeInfoMap)
 	}
 
 	// Case: key present with nodes with holes in node ids
@@ -190,8 +190,8 @@ func TestGossipStoreMetaInfo(t *testing.T) {
 
 	// Case: store empty
 	m := g.MetaInfo()
-	if len(m) != 0 {
-		t.Error("Empty meta info expected from empty store, got: ", m)
+	if len(m) != 1 {
+		t.Error("Only self info expected from empty store, got: ", m)
 	}
 
 	nodeLen := 10
@@ -232,13 +232,13 @@ func TestGossipNodeInfoMap(t *testing.T) {
 
 	nodeLen := 20
 	g1 := NewGossipStore(ID)
-	g2 := NewGossipStore(ID)
+	g2 := NewGossipStore(ID + "2")
 
 	// Case: empty store and emtpy meta info
 	g2New, g1New := g1.Diff(g2.MetaInfo())
-	if len(g2New) != 0 || len(g1New) != 0 {
-		t.Error("Diff of empty stores not empty, g2: ", g2,
-			" g1: ", g1)
+	if len(g2New) != 1 || len(g1New) != 1 {
+		t.Error("Diff of  stores not same, g2: ", g2New,
+			" g1: ", g1New)
 	}
 
 	// Case: empty store and non-empty meta info
@@ -415,8 +415,8 @@ func TestGossipStoreSubset(t *testing.T) {
 
 	log.Info("Testing: empty store and non-empty nodelist")
 	sv = g.Subset(diff)
-	if len(sv) != 0 {
-		t.Error("Emtpy subset expected, got: ", sv)
+	if len(sv) != 1 {
+		t.Error("only self subset expected, got: ", sv)
 	}
 
 	// store and diff asks for 20 nodes but store
@@ -458,19 +458,14 @@ func dumpNodeInfo(nodeInfoMap types.NodeInfoMap, s string, t *testing.T) {
 }
 
 func verifyNodeInfoMapEquality(store types.NodeInfoMap, diff types.NodeInfoMap,
-	excludeSelf bool, t *testing.T) {
-	if excludeSelf {
-		if len(store)+1 != len(diff) {
-			t.Error("Stores do not match ",
-				" got: ", store, " expected: ", diff)
-		}
-	} else if len(store) != len(diff) {
-		t.Error("Stores do not match ",
-			" got: ", store, " expected: ", diff)
+	t *testing.T) {
+	if len(store) != len(diff) {
+		t.Error("Stores do not match got: ",
+			store, " expected: ", diff)
 	}
 
 	for id, info := range store {
-		if excludeSelf && id == ID {
+		if id == ID {
 			continue
 		}
 		dInfo, ok := diff[id]
@@ -489,11 +484,11 @@ func TestGossipStoreUpdateData(t *testing.T) {
 	printTestInfo()
 
 	g := NewGossipStore(ID)
-
+	time.Sleep(1 * time.Second)
 	// empty store and empty diff
 	diff := types.NodeInfoMap{}
 	g.Update(diff)
-	if len(g.nodeMap) != 0 {
+	if len(g.nodeMap) != 1 {
 		t.Error("Updating empty store with empty diff gave non-empty store: ",
 			g.nodeMap)
 	}
@@ -506,7 +501,7 @@ func TestGossipStoreUpdateData(t *testing.T) {
 		fillUpNodeInfoMap(types.NodeInfoMap(diff), key, nodeLen)
 	}
 	g.Update(diff)
-	verifyNodeInfoMapEquality(types.NodeInfoMap(g.nodeMap), diff, true, t)
+	verifyNodeInfoMapEquality(types.NodeInfoMap(g.nodeMap), diff, t)
 
 	for nodeId, nodeInfo := range g.nodeMap {
 		// id % 4 == 0 : node id is not existing
