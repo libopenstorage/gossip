@@ -115,6 +115,9 @@ type GossiperImpl struct {
 	nodes     GossipNodeList
 	name      string
 	nodesLock sync.Mutex
+	// last gossip time
+	lastGossipTsLock sync.Mutex
+	lastGossipTs     time.Time
 	// to signal exit gossip loop
 	send_done         chan bool
 	rcv_done          chan bool
@@ -217,6 +220,12 @@ func (g *GossiperImpl) Stop() {
 		g.update_done <- true
 		g.update_done = nil
 	}
+}
+
+func (g *GossiperImpl) updateGossipTs() {
+	g.lastGossipTsLock.Lock()
+	defer g.lastGossipTsLock.Unlock()
+	g.lastGossipTs = time.Now()
 }
 
 func (g *GossiperImpl) SetGossipInterval(t time.Duration) {
@@ -390,6 +399,7 @@ func (g *GossiperImpl) handleGossip(peerId string, conn types.MessageChannel) {
 	}
 	log.Debug(g.id, " Finished Servicing gossip request")
 	g.history.AddLatest(NewGossipSessionInfo(peerId, types.GD_PEER_TO_ME))
+	g.updateGossipTs()
 }
 
 func (g *GossiperImpl) receiveLoop() {
@@ -411,6 +421,7 @@ func (g *GossiperImpl) sendLoop() {
 		select {
 		case <-tick:
 			gs := g.gossip()
+			g.updateGossipTs()
 			g.history.AddLatest(gs)
 		case <-g.send_done:
 			return
@@ -425,6 +436,13 @@ func (g *GossiperImpl) updateStatusLoop() {
 	for {
 		select {
 		case <-tick:
+			currTime := time.Now()
+			timeDiff := currTime.Sub(g.lastGossipTs)
+			if timeDiff > g.gossipInterval*5 {
+				// cannot update node statuses since we haven't gossiped
+				// in long time
+				continue
+			}
 			if g.UpdateNodeStatuses(g.nodeDeathInterval,
 				4*g.nodeDeathInterval) {
 				g.history.LogRecords()
