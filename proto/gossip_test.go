@@ -362,11 +362,12 @@ func TestGossiperGossipMarkOldGenNode(t *testing.T) {
 		g := NewGossiperImpl(nodeId, id)
 
 		g.SetGossipInterval(time.Duration(200+rand.Intn(200)) * time.Millisecond)
+		g.SetNodeDeathInterval(200 * time.Millisecond)
 		for j, peer := range nodes {
 			if i == j {
 				continue
 			}
-			g.AddNode(peer, types.NodeId(j))
+			g.AddNode(peer, types.NodeId(strconv.Itoa(j)))
 		}
 		gossipers[i] = g
 	}
@@ -398,32 +399,6 @@ func TestGossiperGossipMarkOldGenNode(t *testing.T) {
 		}
 	}
 
-	time.Sleep(2 * time.Second)
-	for i, g := range gossipers {
-		res := g.GetStoreKeyValue(key)
-		for nodeId, n := range res {
-			if nodeId != n.Id {
-				t.Error("Gossiper ", i, "Id does not match ",
-					nodeId, " n:", n.Id)
-			}
-			nid, ok := strconv.Atoi(string(nodeId))
-			if ok != nil {
-				t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
-			}
-			if nid == 0 {
-				if n.Status != types.NODE_STATUS_DOWN {
-					t.Error("Gossiper ", i,
-						"Expected node status to be down: ", nodeId, " n:", n)
-				}
-			} else {
-				if n.Status != types.NODE_STATUS_UP {
-					t.Error("Gossiper ", i, "Expected node to be up: ", nodeId,
-						" n:", n)
-				}
-			}
-		}
-	}
-
 	// Now Reset both node 0 and node 1 in node 2.
 	nid0 := types.NodeId(strconv.Itoa(0))
 	nid1 := types.NodeId(strconv.Itoa(1))
@@ -433,8 +408,8 @@ func TestGossiperGossipMarkOldGenNode(t *testing.T) {
 	g.MarkNodeHasOldGen(nid0)
 	g.MarkNodeHasOldGen(nid1)
 	// Update value in node 1
-	g, _ = gossipers[1]
-	g.UpdateSelf(key, value+"__1")
+	g1, _ := gossipers[1]
+	g1.UpdateSelf(key, value+"__1")
 
 	// Node must be up now
 	g, _ = gossipers[2]
@@ -455,40 +430,36 @@ func TestGossiperGossipMarkOldGenNode(t *testing.T) {
 		}
 	}
 
-	time.Sleep(800 * time.Millisecond)
+	time.Sleep(5 * time.Second)
 	res = g.GetStoreKeyValue(key)
-	g1Node, _ := res[nid1]
-	if g1Node.Status != types.NODE_STATUS_UP {
-		t.Error("Expected node to be up ", g1Node)
-	}
-
-	// Sleep for 15*(node death interval) i.e. 15*400 mil i.e. 6 seconds
-	// , both nodes must me marked down
-	time.Sleep(35 * time.Second)
-	res = g.GetStoreKeyValue(key)
-	for nodeId, n := range res {
-		if nid2 == nodeId {
-			continue
-		}
-		if nodeId != n.Id {
-			t.Error("Id does not match ", nodeId, " n:", n.Id)
-		}
-		_, ok := strconv.Atoi(string(nodeId))
-		if ok != nil {
-			t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
-		}
-		if n.Status != types.NODE_STATUS_DOWN {
-			t.Error("Expected node to be down: ", nodeId, " n:", n)
-		}
+	g0Node, _ := res[nid0]
+	if g0Node.Status != types.NODE_STATUS_DOWN_WAITING_FOR_NEW_UPDATE {
+		t.Error("Expected node to be down waiting for update ", g0Node.Status,
+			" down:", types.NODE_STATUS_DOWN)
 	}
 
 	// Test that the node does not is marked down after reset
+	g1, _ = gossipers[1]
+	g1.Stop()
 	g.MarkNodeHasOldGen(nid1)
-	time.Sleep(35 * time.Second)
+	time.Sleep(5 * time.Second)
 	res = g.GetStoreKeyValue(key)
-	g1Node, _ = res[nid1]
+	g1Node, _ := res[nid1]
 	if g1Node.Status != types.NODE_STATUS_DOWN_WAITING_FOR_NEW_UPDATE {
 		t.Error("Expected node to be down waiting for update ", g1Node)
+	}
+
+	// Now check transition from node status down to node up
+	// Increase death interval and update g1
+	g1.Start()
+	g.SetNodeDeathInterval(30 * time.Second)
+	// Allow some gossip to occur
+	time.Sleep(1 * time.Second)
+	res = g.GetStoreKeyValue(key)
+	g1Node, _ = res[nid1]
+	if g1Node.Status != types.NODE_STATUS_UP {
+		t.Error("Expected node to be up ", g1Node.Status,
+			" up: ", types.NODE_STATUS_UP)
 	}
 
 	for _, g := range gossipers {

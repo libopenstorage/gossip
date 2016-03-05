@@ -352,6 +352,8 @@ func (g *GossiperImpl) handleGossip(peerId string, conn types.MessageChannel) {
 	var peerMetaInfo types.StoreMetaInfo
 	err := error(nil)
 
+	g.updateSelfTs()
+
 	// Get the info about the node data that the sender has
 	err = conn.RcvData(&peerMetaInfo)
 	log.Debug(g.id, " Got meta data: \n", peerMetaInfo)
@@ -468,6 +470,7 @@ func (g *GossiperImpl) gossip() *types.GossipSessionInfo {
 		return gs
 	}
 
+	g.updateSelfTs()
 	// send meta data info about the node to the peer
 	err := g.sendNodeMetaInfo(conn)
 	if err != nil {
