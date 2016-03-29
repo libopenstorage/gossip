@@ -26,7 +26,7 @@ func TestTransportSendAndRcvData(t *testing.T) {
 		if err != nil {
 			t.Error("Error receiving data: %v from peer %v", err, peer)
 		} else {
-			t.Log("Done receiving")
+			t.Log("Done receiving data")
 		}
 	}
 

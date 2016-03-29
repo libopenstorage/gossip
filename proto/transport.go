@@ -126,7 +126,7 @@ func (c *ConnObj) SendData(obj interface{}) error {
 	enc := gob.NewEncoder(&buf)
 	err = enc.Encode(obj)
 	if err != nil {
-		transportLog(c, fn, err).Error("Failed to serialize message")
+		transportLog(c, fn, err).Error("Failed to marshal message")
 		return err
 	}
 

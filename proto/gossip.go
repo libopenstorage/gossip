@@ -397,7 +397,7 @@ func (g *GossiperImpl) handleGossip(peerId string, conn types.MessageChannel) {
 	if err != nil {
 		return
 	}
-	log.Debug(g.id, " Finished Servicing gossip request")
+	log.Debug(g.id, "Finished Servicing gossip request")
 	g.history.AddLatest(NewGossipSessionInfo(peerId, types.GD_PEER_TO_ME))
 	g.updateGossipTs()
 }
