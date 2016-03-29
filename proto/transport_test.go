@@ -1,7 +1,6 @@
 package proto
 
 import (
-	"fmt"
 	"github.com/libopenstorage/gossip/types"
 	"strconv"
 	"testing"
@@ -33,7 +32,7 @@ func TestTransportSendAndRcvData(t *testing.T) {
 
 	ipString := "0.0.0.0:19002"
 	r := NewRunnableMessageChannel(ipString, handler)
-	go r.RunOnRcvData()
+	go r.RunOnRcvData(IO_DEADLINE)
 	time.Sleep(1 * time.Second)
 
 	keyList := []types.StoreKey{"key1", "key2"}
@@ -45,7 +44,7 @@ func TestTransportSendAndRcvData(t *testing.T) {
 		data1.Data[key] = node
 	}
 
-	s := NewMessageChannel(ipString)
+	s := NewMessageChannel(ipString, IO_DEADLINE)
 	if s == nil {
 		t.Fatal("Error creating send channel, failing test")
 	}
@@ -56,6 +55,59 @@ func TestTransportSendAndRcvData(t *testing.T) {
 
 	if len(data1.Data) != len(data2.Data) {
 		t.Error("Sent and rcvd messages mismatch, sent: ", data1,
+			" got: ", data2)
+	}
+}
+
+func TestTransportFailureStuckIo(t *testing.T) {
+	printTestInfo()
+	time.Sleep(10 * time.Second)
+	data1 := &TestData{}
+	data2 := &TestData{}
+
+	data1.Data = make(map[types.StoreKey]types.NodeInfo)
+	data2.Data = make(map[types.StoreKey]types.NodeInfo)
+
+	var handler types.OnMessageRcv = func(peer string,
+		c types.MessageChannel) {
+		time.Sleep(time.Second * 40)
+		err := c.RcvData(&data2)
+		if err == nil {
+			t.Error("Expected error for slow client")
+		}
+	}
+
+	ipString := "0.0.0.0:19002"
+	r := NewRunnableMessageChannel(ipString, handler)
+	go r.RunOnRcvData(time.Second * 25)
+	time.Sleep(1 * time.Second)
+
+	keyList := []types.StoreKey{"key1", "key2"}
+	for i, key := range keyList {
+		var node types.NodeInfo
+		node.Id = types.NodeId(i)
+		node.Value = make(types.StoreMap)
+		node.Value[key] = "some data"
+		data1.Data[key] = node
+	}
+
+	s := NewMessageChannel(ipString, time.Second*30)
+	if s == nil {
+		t.Fatal("Error creating send channel, failing test")
+	}
+	err := s.SendData(&data1)
+	time.Sleep(1 * time.Second)
+	s.Close()
+	r.Close()
+
+	if err != nil {
+		t.Error("Expected error due to stuck client")
+	} else {
+		t.Log("Error: ", err)
+	}
+
+	if len(data1.Data) == len(data2.Data) {
+		t.Error("Sent and rcvd messages match, sent: ", data1,
 			" got: ", data2)
 	}
 }
@@ -78,10 +130,10 @@ func TestTransportFailures(t *testing.T) {
 		return
 	}
 
-	fmt.Println("Close without sending data")
+	t.Log("Close without sending data")
 	ipString := "0.0.0.0:17016"
 	r := NewRunnableMessageChannel(ipString, handler)
-	go r.RunOnRcvData()
+	go r.RunOnRcvData(IO_DEADLINE)
 	time.Sleep(5 * time.Second)
 
 	keyList := []types.StoreKey{"key1", "key2"}
@@ -94,7 +146,7 @@ func TestTransportFailures(t *testing.T) {
 	}
 
 	// close the channel without sending any message
-	s := NewMessageChannel(ipString)
+	s := NewMessageChannel(ipString, IO_DEADLINE)
 	if s == nil {
 		t.Fatal("Error creating send channel, failing test")
 	}
@@ -104,28 +156,28 @@ func TestTransportFailures(t *testing.T) {
 	r.Close()
 	time.Sleep(10 * time.Millisecond)
 
-	fmt.Println("Close the channel and then send")
+	t.Log("Close the channel and then send")
 	// open and then close the channel
 	ipString = "0.0.0.0:17617"
 	r = NewRunnableMessageChannel(ipString, handler)
-	go r.RunOnRcvData()
+	go r.RunOnRcvData(IO_DEADLINE)
 	time.Sleep(1 * time.Second)
 	r.Close()
 
 	time.Sleep(2 * time.Second)
 	// try sending data to closed end
-	s = NewMessageChannel(ipString)
+	s = NewMessageChannel(ipString, IO_DEADLINE)
 	if s != nil {
 		t.Error("Error, expected nil sender")
 	}
 
-	fmt.Println("Send non-marshalable data")
+	t.Log("Send non-marshalable data")
 	// try sending non-marshabable data
 	ipString = "0.0.0.0:17418"
 	r = NewRunnableMessageChannel(ipString, handler)
-	go r.RunOnRcvData()
+	go r.RunOnRcvData(IO_DEADLINE)
 	time.Sleep(1 * time.Second)
-	s = NewMessageChannel(ipString)
+	s = NewMessageChannel(ipString, IO_DEADLINE)
 	if s == nil {
 		t.Fatal("Error creating send channel, failing test")
 	}
@@ -198,7 +250,7 @@ func TestTransportTwoWayExchange(t *testing.T) {
 	}
 
 	r := NewRunnableMessageChannel("0.0.0.0:19422", handler)
-	go r.RunOnRcvData()
+	go r.RunOnRcvData(IO_DEADLINE)
 	time.Sleep(1 * time.Second)
 
 	keyList := []types.StoreKey{"key1", "key2"}
@@ -211,7 +263,7 @@ func TestTransportTwoWayExchange(t *testing.T) {
 	}
 
 	ipString := "0.0.0.0:19422"
-	s := NewMessageChannel(ipString)
+	s := NewMessageChannel(ipString, IO_DEADLINE)
 	if s == nil {
 		t.Fatal("Error creating send channel, failing test")
 	}
