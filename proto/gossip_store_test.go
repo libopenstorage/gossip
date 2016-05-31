@@ -2,7 +2,6 @@ package proto
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
 	"github.com/libopenstorage/gossip/types"
 	"math/rand"
 	"runtime"
@@ -106,37 +105,6 @@ func TestGossipStoreUpdateSelf(t *testing.T) {
 	}
 }
 
-func TestGossipStoreUpdateNodeStatuses(t *testing.T) {
-	printTestInfo()
-
-	g := NewGossipStore(ID)
-
-	nodeLen := 10
-	keyList := []types.StoreKey{"key1", "key2", "key3"}
-	for _, key := range keyList {
-		fillUpNodeInfoMap(g.nodeMap, key, nodeLen)
-	}
-
-	time.Sleep(3 * time.Second)
-	g.UpdateNodeStatuses(6*time.Second, 24*time.Second)
-	for id, nodeInfo := range g.nodeMap {
-		if nodeInfo.Status == types.NODE_STATUS_DOWN {
-			t.Error("Node wrongly marked down: ", nodeInfo,
-				" for node: ", id)
-		}
-	}
-
-	time.Sleep(3 * time.Second)
-	g.UpdateNodeStatuses(5*time.Second, 20*time.Second)
-	for id, nodeInfo := range g.nodeMap {
-		if nodeInfo.Status != types.NODE_STATUS_DOWN &&
-			id != ID {
-			t.Error("Node wrongly marked up: ", nodeInfo,
-				" for key: ", id)
-		}
-	}
-}
-
 func TestGossipStoreGetStoreKeyValue(t *testing.T) {
 	printTestInfo()
 
@@ -227,154 +195,9 @@ func TestGossipStoreMetaInfo(t *testing.T) {
 	}
 }
 
-func TestGossipNodeInfoMap(t *testing.T) {
-	printTestInfo()
-
-	nodeLen := 20
-	g1 := NewGossipStore(ID)
-	g2 := NewGossipStore(ID + "2")
-
-	// Case: empty store and emtpy meta info
-	g2New, g1New := g1.Diff(g2.MetaInfo())
-	if len(g2New) != 1 || len(g1New) != 1 {
-		t.Error("Diff of  stores not same, g2: ", g2New,
-			" g1: ", g1New)
-	}
-
-	// Case: empty store and non-empty meta info
-	keyList := []types.StoreKey{"key1", "key2", "key3"}
-	g2.nodeMap = make(types.NodeInfoMap)
-	for _, key := range keyList {
-		fillUpNodeInfoMap(g2.nodeMap, key, nodeLen)
-	}
-
-	g2New, g1New = g1.Diff(g2.MetaInfo())
-	if len(g2New) != nodeLen || len(g1New) != 0 {
-		t.Error("Diff lens unexpected, g1New: ", len(g1New),
-			", g2New: ", len(g2New), " g2: ", len(g2.nodeMap))
-	}
-
-	for _, nodeId := range g2New {
-		if _, ok := g2.nodeMap[nodeId]; !ok {
-			t.Error("Nodes mismatch, got ids: ", nodeId,
-				", expected: ", g2.nodeMap)
-		}
-	}
-
-	// Case: diff of itself should return empty
-	g2New, g1New = g2.Diff(g2.MetaInfo())
-	if len(g2New) != 0 || len(g1New) != 0 {
-		t.Error("Diff of empty stores not empty, g2New: ", g2New,
-			" g1New: ", g1New)
-	}
-
-	// Case: empty store meta info with store value
-	g1New, g2New = g2.Diff(g1.MetaInfo())
-	if len(g2New) != nodeLen || len(g1New) != 0 {
-		t.Error("Diff lens unexpected, g1New: ", len(g1New),
-			", g2New: ", len(g2New), " g2: ", nodeLen)
-	}
-
-	for _, nodeId := range g2New {
-		if _, ok := g2.nodeMap[nodeId]; !ok {
-			t.Error("Nodes mismatch, got ids: ", nodeId,
-				", expected: ", g2.nodeMap)
-		}
-	}
-
-	// Case: diff with meta info such that
-	// - node info missing in one or other
-	// - node info present with different timestamps
-	// - node info present with same timestamps
-	keyList = []types.StoreKey{"key1", "key2", "key3"}
-	g1.nodeMap = make(types.NodeInfoMap)
-	g2.nodeMap = make(types.NodeInfoMap)
-	for _, key := range keyList {
-		fillUpNodeInfoMap(g1.nodeMap, key, nodeLen)
-		fillUpNodeInfoMap(g2.nodeMap, key, nodeLen)
-	}
-	leng1New := 0
-	leng2New := 0
-	for id, info := range g1.nodeMap {
-		// i % 4 == 0 have same timestamps
-		// i % 3 == 0 node is present in g2 (absent or invalid in g1)
-		// i % 3 == 1 node is present in g1 (absent or invalid in g2)
-		// i % 3 == 2 node is invalid in both
-		i, _ := strconv.Atoi(string(id))
-		switch {
-		case i%4 == 0:
-			// 0, 4, 8, 12, 16
-			n, _ := g2.nodeMap[id]
-			n.LastUpdateTs = info.LastUpdateTs
-			g2.nodeMap[id] = n
-		case i%3 == 0:
-			// 3,6,9,15,18
-			leng2New++
-			n := g1.nodeMap[id]
-			if i > (3 * nodeLen / 4) {
-				n.Status = types.NODE_STATUS_INVALID
-				g1.nodeMap[id] = n
-			} else if i > (nodeLen / 2) {
-				n.Status = types.NODE_STATUS_NEVER_GOSSIPED
-				g1.nodeMap[id] = n
-			} else {
-				delete(g1.nodeMap, id)
-			}
-		case i%3 == 1:
-			leng1New++
-			// 1,7,10,13,19
-			n := g2.nodeMap[id]
-			if i > (3 * nodeLen / 4) {
-				n.Status = types.NODE_STATUS_INVALID
-				g2.nodeMap[id] = n
-			} else if i > (nodeLen / 2) {
-				n.Status = types.NODE_STATUS_NEVER_GOSSIPED
-				g2.nodeMap[id] = n
-			} else {
-				delete(g2.nodeMap, id)
-			}
-		case i%3 == 2:
-			// 2,5,11,14,17
-			n1 := g1.nodeMap[id]
-			n2 := g2.nodeMap[id]
-			if i > (nodeLen / 2) {
-				n1.Status = types.NODE_STATUS_INVALID
-				n2.Status = types.NODE_STATUS_NEVER_GOSSIPED
-			} else {
-				n1.Status = types.NODE_STATUS_NEVER_GOSSIPED
-				n2.Status = types.NODE_STATUS_INVALID
-			}
-			g1.nodeMap[id] = n1
-			g2.nodeMap[id] = n2
-		}
-		i++
-	}
-
-	// Expected g1: 1,7,10,13,19
-	// Expected g2: 3,6,9,15,18
-	g1New, g2New = g2.Diff(g1.MetaInfo())
-	if len(g2New) != leng2New || len(g2New) != leng1New {
-		t.Error("Diff lens unexpected, g1New: ", len(g1New), "expected: ",
-			leng1New, ", g2New: ", len(g2New), " expected: ", leng2New,
-			" g1:", g1New, " g2:", g2New)
-	}
-	for _, id := range g1New {
-		nodeId, _ := strconv.Atoi(string(id))
-		if nodeId%3 != 1 {
-			t.Error("Unexpected g1New ", nodeId)
-		}
-	}
-	for _, id := range g2New {
-		nodeId, _ := strconv.Atoi(string(id))
-		if nodeId%3 != 0 {
-			t.Error("Unexpected g2New ", nodeId)
-		}
-	}
-}
-
 func compareNodeInfo(n1 types.NodeInfo, n2 types.NodeInfo) bool {
-	eq := n1.Id == n2.Id && n2.LastUpdateTs == n1.LastUpdateTs &&
-		n1.Status == n2.Status
+	eq := n1.Id == n2.Id && n2.LastUpdateTs == n1.LastUpdateTs // &&
+	//n1.Status == n2.Status
 	eq = eq && (n1.Value == nil && n2.Value == nil ||
 		n1.Value != nil && n2.Value != nil)
 	if eq && n1.Value != nil {
@@ -393,61 +216,6 @@ func compareNodeInfo(n1 types.NodeInfo, n2 types.NodeInfo) bool {
 		}
 	}
 	return eq
-}
-
-func TestGossipStoreSubset(t *testing.T) {
-	printTestInfo()
-
-	g := NewGossipStore(ID)
-
-	log.Info("Testing: empty store and empty nodelist")
-	// empty store and empty nodelist and non-empty nodelist
-	diff := make(types.StoreNodes, 0)
-	sv := g.Subset(diff)
-	if len(sv) != 0 {
-		t.Error("Emtpy subset expected, got: ", sv)
-	}
-
-	nodeLen := 10
-	for i := 0; i < nodeLen*2; i++ {
-		diff = append(diff, types.NodeId(strconv.Itoa(i)))
-	}
-
-	log.Info("Testing: empty store and non-empty nodelist")
-	sv = g.Subset(diff)
-	if len(sv) != 1 {
-		t.Error("only self subset expected, got: ", sv)
-	}
-
-	// store and diff asks for 20 nodes but store
-	// has only a subset of it, as well as some keys
-	// it does not know about
-	keyList := []types.StoreKey{"key1", "key2", "key3"}
-	g.nodeMap = make(types.NodeInfoMap)
-	for _, key := range keyList {
-		fillUpNodeInfoMap(g.nodeMap, key, nodeLen)
-	}
-
-	diff = make(types.StoreNodes, 0)
-	for i := 0; i < nodeLen; i++ {
-		diff = append(diff, types.NodeId(strconv.Itoa(2*i)))
-	}
-
-	log.Info("Testing: empty store and non-empty nodelist")
-	sv = g.Subset(diff)
-	if len(sv) != nodeLen/2 {
-		t.Error("Subset has more keys then requested: ", sv)
-	}
-	for id, info := range sv {
-		gInfo, ok := g.nodeMap[id]
-		if !ok {
-			t.Error("Subset returned id which was not originally present ", id)
-		}
-		if !compareNodeInfo(info, gInfo) {
-			t.Error("Node info does not match, d:", info, " o:", gInfo)
-		}
-	}
-
 }
 
 func dumpNodeInfo(nodeInfoMap types.NodeInfoMap, s string, t *testing.T) {
@@ -501,6 +269,15 @@ func TestGossipStoreUpdateData(t *testing.T) {
 		fillUpNodeInfoMap(types.NodeInfoMap(diff), key, nodeLen)
 	}
 	g.Update(diff)
+	// Update does not modify the statuses in the node info map.
+	// Its always memberlist who deals with statuses
+	// Fake that behavior
+	for id, _ := range diff {
+		nodeInfo, _ := g.nodeMap[id]
+		nodeInfo.Status = types.NODE_STATUS_UP
+		g.nodeMap[id] = nodeInfo
+	}
+
 	verifyNodeInfoMapEquality(types.NodeInfoMap(g.nodeMap), diff, t)
 
 	for nodeId, nodeInfo := range g.nodeMap {
@@ -610,12 +387,8 @@ func TestGossipStoreBlackBoxTests(t *testing.T) {
 		}
 	}
 
-	g1New, g2New := g2.Diff(g1.MetaInfo())
-	g1Subset := g1.Subset(g1New)
-	g2Subset := g2.Subset(g2New)
-
-	g1.Update(g2Subset)
-	g2.Update(g1Subset)
+	g1.Update(g2.GetLocalState())
+	g2.Update(g1.GetLocalState())
 
 	if len(g1.nodeMap) != len(g2.nodeMap) &&
 		len(g1.nodeMap) != len(keyList) {
