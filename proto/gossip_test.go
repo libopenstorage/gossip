@@ -11,7 +11,7 @@ import (
 
 // New returns an initialized Gossip node
 // which identifies itself with the given ip
-func NewGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string) (*GossiperImpl, error) {
+func NewGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string, version string) (*GossiperImpl, error) {
 	g := new(GossiperImpl)
 	gi := types.GossipIntervals{
 		GossipInterval:   types.DEFAULT_GOSSIP_INTERVAL,
@@ -19,7 +19,7 @@ func NewGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string) (*Go
 		ProbeInterval:    types.DEFAULT_PROBE_INTERVAL,
 		ProbeTimeout:     types.DEFAULT_PROBE_TIMEOUT,
 	}
-	g.Init(ip, selfNodeId, 1, gi)
+	g.Init(ip, selfNodeId, 1, gi, version)
 	g.selfCorrect = false
 	err := g.Start(knownIps)
 	return g, err
@@ -87,14 +87,14 @@ func TestGossiperStartStopGetNode(t *testing.T) {
 	}
 
 	gossipers := make([]*GossiperImpl, len(nodesIp))
-	gossipers[0], _ = NewGossiperImpl(nodesIp[0], types.NodeId(strconv.Itoa(0)), []string{})
+	gossipers[0], _ = NewGossiperImpl(nodesIp[0], types.NodeId(strconv.Itoa(0)), []string{}, types.DEFAULT_GOSSIP_VERSION)
 	// test add nodes
 	for i := 1; i < len(nodesIp); i++ {
-		gossipers[i], _ = NewGossiperImpl(nodesIp[i], types.NodeId(strconv.Itoa(i)), []string{nodesIp[0]})
+		gossipers[i], _ = NewGossiperImpl(nodesIp[i], types.NodeId(strconv.Itoa(i)), []string{nodesIp[0]}, types.DEFAULT_GOSSIP_VERSION)
 	}
 
 	// try adding existing node by starting gossiper on other nodes
-	_, err := NewGossiperImpl(nodesIp[1], types.NodeId(strconv.Itoa(1)), []string{nodesIp[0]})
+	_, err := NewGossiperImpl(nodesIp[1], types.NodeId(strconv.Itoa(1)), []string{nodesIp[0]}, types.DEFAULT_GOSSIP_VERSION)
 	if err == nil {
 		t.Error("Duplicate node addition did not fail")
 	}
@@ -143,14 +143,14 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 
 	rand.Seed(time.Now().UnixNano())
 	id := types.NodeId(strconv.Itoa(0))
-	gZero, _ := NewGossiperImpl(nodesIp[0], id, []string{})
+	gZero, _ := NewGossiperImpl(nodesIp[0], id, []string{}, types.DEFAULT_GOSSIP_VERSION)
 	var otherGossipers []*GossiperImpl
 	// First Start the gossipers on all other nodes
 	for j, peer := range nodesIp {
 		if j == 0 {
 			continue
 		}
-		g, _ := NewGossiperImpl(peer, types.NodeId(strconv.Itoa(j)), []string{nodesIp[0]})
+		g, _ := NewGossiperImpl(peer, types.NodeId(strconv.Itoa(j)), []string{nodesIp[0]}, types.DEFAULT_GOSSIP_VERSION)
 		otherGossipers = append(otherGossipers, g)
 	}
 
@@ -176,7 +176,6 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 		t.Error("Nodes down not reported ", res)
 	}
 
-	t.Log("Res is  ", res)
 	for nodeId, n := range res {
 		if nodeId != n.Id {
 			t.Error("Gossiper Id does not match ",
@@ -186,7 +185,6 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 		if ok != nil {
 			t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
 		}
-		t.Log("Node id is ", nid)
 		if nid != 0 {
 			if n.Status != types.NODE_STATUS_DOWN {
 				t.Error("Gossiper ", nid,
@@ -214,9 +212,9 @@ func TestGossiperOneNodeNeverGossips(t *testing.T) {
 		id := types.NodeId(strconv.Itoa(i))
 		var g *GossiperImpl
 		if i == 0 {
-			g, _ = NewGossiperImpl(nodeId, id, []string{})
+			g, _ = NewGossiperImpl(nodeId, id, []string{}, types.DEFAULT_GOSSIP_VERSION)
 		} else {
-			g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]})
+			g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
 		}
 
 		gossipers[i] = g
@@ -290,6 +288,159 @@ func TestGossiperOneNodeNeverGossips(t *testing.T) {
 	}
 }
 
+func TestGossiperNodeVersionMismatch(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{
+		"127.0.0.1:9721",
+		"127.0.0.2:9722",
+		"127.0.0.3:9723",
+		"127.0.0.4:9724",
+		"127.0.0.5:9725",
+	}
+	rand.Seed(time.Now().UnixNano())
+	gossipers := make(map[int]*GossiperImpl)
+
+	// Start gossipers for all nodes
+	for i, nodeId := range nodes {
+		id := types.NodeId(strconv.Itoa(i))
+		var g *GossiperImpl
+		if i == 0 {
+			g, _ = NewGossiperImpl(nodeId, id, []string{}, types.DEFAULT_GOSSIP_VERSION)
+		} else {
+			if i == 2 || i == 4 {
+				// Set a different gossip version
+				g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, "v2")
+			} else {
+				g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
+			}
+		}
+
+		gossipers[i] = g
+	}
+
+	key := types.StoreKey("somekey")
+	value := "someValue"
+	for i, g := range gossipers {
+		g.UpdateSelf(key, value+strconv.Itoa(i))
+	}
+
+	// Let the nodes gossip and populate their memberlists
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+
+	for i, g := range gossipers {
+		res := g.GetStoreKeyValue(key)
+		if i == 2 || i == 4 {
+			// These nodes should not have gossiped
+			if len(res) > 1 {
+				t.Error("Gossip Version mismatch not entertained. Node ", i, " still has ", len(res), "peers")
+			}
+			continue
+		}
+		for nodeId, n := range res {
+			if nodeId != n.Id {
+				t.Error("Gossiper ", i, "Id does not match ",
+					nodeId, " n:", n.Id)
+			}
+			nid, ok := strconv.Atoi(string(nodeId))
+			if ok != nil {
+				t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+			}
+			if nid == 2 || nid == 4 {
+				t.Error("Gossip Version mismatch not entertained. Node ", i, "still has an update for faulty node ", nid)
+			}
+		}
+	}
+	for _, g := range gossipers {
+		g.Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
+	}
+}
+
+func TestGossiperGroupingOfNodesWithSameVersion(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{
+		"127.0.0.1:9821",
+		"127.0.0.2:9822",
+		"127.0.0.3:9823",
+		"127.0.0.4:9824",
+		"127.0.0.5:9825",
+	}
+	rand.Seed(time.Now().UnixNano())
+	gossipers := make(map[int]*GossiperImpl)
+
+	// Start gossipers for all nodes
+	for i, nodeId := range nodes {
+		id := types.NodeId(strconv.Itoa(i))
+		var g *GossiperImpl
+		if i == 0 {
+			g, _ = NewGossiperImpl(nodeId, id, []string{}, types.DEFAULT_GOSSIP_VERSION)
+		} else {
+			// Nodes 2 and 4 have same version. They should form a memberlist
+			if i == 2 {
+				// Set a different gossip version
+				g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, "v2")
+			} else if i == 4 {
+				// Set a different gossip version
+				// This gossiper will try to connect to nodes 0 and 2. 0 should fail and 2 should succeed
+				g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0], nodes[2]}, "v2")
+			} else {
+				g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
+			}
+		}
+
+		gossipers[i] = g
+	}
+
+	key := types.StoreKey("somekey")
+	value := "someValue"
+	for i, g := range gossipers {
+		g.UpdateSelf(key, value+strconv.Itoa(i))
+	}
+
+	// Let the nodes gossip and populate their memberlists
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+
+	for i, g := range gossipers {
+		res := g.GetStoreKeyValue(key)
+		if i == 2 {
+			if len(res) < 2 {
+				t.Error("Node 2 does not have any update from Node 4")
+			}
+			_, ok := res[types.NodeId("4")]
+			if !ok {
+				t.Error("Node 2 does not have update from Node 4 but has updates from other nodes.")
+			}
+		} else if i == 4 {
+			if len(res) < 2 {
+				t.Error("Node 2 does not have any update from Node 4")
+			}
+			_, ok := res[types.NodeId("2")]
+			if !ok {
+				t.Error("Node 2 does not have update from Node 4 but has updates from other nodes.")
+			}
+		} else {
+			for nodeId, n := range res {
+				if nodeId != n.Id {
+					t.Error("Gossiper ", i, "Id does not match ",
+						nodeId, " n:", n.Id)
+				}
+				nid, ok := strconv.Atoi(string(nodeId))
+				if ok != nil {
+					t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+				}
+				if nid == 2 || nid == 4 {
+					t.Error("Gossip Version mismatch not entertained. Node ", i, "still has an update for faulty node ", nid)
+				}
+			}
+
+		}
+	}
+	for _, g := range gossipers {
+		g.Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
+	}
+}
+
 func TestGossiperUpdateNodeIp(t *testing.T) {
 	printTestInfo()
 
@@ -305,9 +456,9 @@ func TestGossiperUpdateNodeIp(t *testing.T) {
 	for i, nodeId := range nodes {
 		id := types.NodeId(strconv.Itoa(i))
 		if i == 0 {
-			g, _ = NewGossiperImpl(nodeId, id, []string{})
+			g, _ = NewGossiperImpl(nodeId, id, []string{}, types.DEFAULT_GOSSIP_VERSION)
 		} else {
-			g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]})
+			g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
 		}
 
 		gossipers[i] = g
@@ -322,7 +473,7 @@ func TestGossiperUpdateNodeIp(t *testing.T) {
 	// Bring down node 0 and bring it back up with changed IP
 	gossipers[0].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
 	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
-	changedGossiper, _ := NewGossiperImpl("127.0.0.4:9328", types.NodeId("0"), []string{"127.0.0.3:9327"})
+	changedGossiper, _ := NewGossiperImpl("127.0.0.4:9328", types.NodeId("0"), []string{"127.0.0.3:9327"}, types.DEFAULT_GOSSIP_VERSION)
 	gossipers[0] = changedGossiper
 	// Change the IP in the nodes array
 	nodes[0] = "127.0.0.4:9328"
@@ -430,7 +581,7 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 			count++
 		}
 
-		g, _ := NewGossiperImpl(nodeId, types.NodeId(strconv.Itoa(i)), []string{neighbourNode, randomNode})
+		g, _ := NewGossiperImpl(nodeId, types.NodeId(strconv.Itoa(i)), []string{neighbourNode, randomNode}, types.DEFAULT_GOSSIP_VERSION)
 
 		//g.SetGossipInterval(time.Duration(1500+rand.Intn(200)) * time.Millisecond)
 

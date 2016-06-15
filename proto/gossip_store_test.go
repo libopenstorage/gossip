@@ -59,7 +59,7 @@ func fillUpNodeInfoMap(nodes types.NodeInfoMap, key types.StoreKey,
 func TestGossipStoreUpdateSelf(t *testing.T) {
 	printTestInfo()
 	// emtpy store
-	g := NewGossipStore(ID)
+	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION)
 
 	id := g.NodeId()
 	if id != ID {
@@ -110,7 +110,7 @@ func TestGossipStoreGetStoreKeyValue(t *testing.T) {
 
 	// Case: emtpy store
 	// Case: key absent
-	g := NewGossipStore(ID)
+	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION)
 
 	keyList := []types.StoreKey{"key1", "key2"}
 
@@ -154,44 +154,14 @@ func TestGossipStoreGetStoreKeyValue(t *testing.T) {
 func TestGossipStoreMetaInfo(t *testing.T) {
 	printTestInfo()
 
-	g := NewGossipStore(ID)
+	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION)
 
-	// Case: store empty
 	m := g.MetaInfo()
-	if len(m) != 1 {
-		t.Error("Only self info expected from empty store, got: ", m)
+	if m.Id != ID {
+		t.Error("Node meta has invalid ID. Got:", m.Id, " Expected: ", ID)
 	}
-
-	nodeLen := 10
-	// Case: store with keys, some keys have no ids, other have ids,
-	keyList := []types.StoreKey{"key1", "key2", "key3"}
-	g.nodeMap = make(types.NodeInfoMap)
-	for _, key := range keyList {
-		fillUpNodeInfoMap(g.nodeMap, key, nodeLen)
-	}
-
-	for i, key := range keyList {
-		for j := 0; j < nodeLen; j++ {
-			if i%2 == 0 {
-				if j%2 == 0 {
-					clearKey(g.nodeMap, key, j)
-				}
-			} else {
-				if j%2 == 1 {
-					clearKey(g.nodeMap, key, j)
-				}
-			}
-		}
-	}
-
-	m = g.MetaInfo()
-	if len(m) != 10 {
-		t.Error("Meta info len error, got: ", len(m), " expected: ", len(keyList))
-	}
-	for _, metaInfo := range m {
-		if _, ok := g.nodeMap[metaInfo.Id]; !ok {
-			t.Error("MetaInfo returned unexpected id ", metaInfo)
-		}
+	if m.GossipVersion != types.DEFAULT_GOSSIP_VERSION {
+		t.Error("Gossip Version mismatch. Got: ", m.GossipVersion, " Expected: ", types.DEFAULT_GOSSIP_VERSION)
 	}
 }
 
@@ -251,7 +221,7 @@ func verifyNodeInfoMapEquality(store types.NodeInfoMap, diff types.NodeInfoMap,
 func TestGossipStoreUpdateData(t *testing.T) {
 	printTestInfo()
 
-	g := NewGossipStore(ID)
+	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION)
 	time.Sleep(1 * time.Second)
 	// empty store and empty diff
 	diff := types.NodeInfoMap{}
@@ -336,7 +306,7 @@ func TestGossipStoreUpdateData(t *testing.T) {
 func TestGossipStoreGetStoreKeys(t *testing.T) {
 	printTestInfo()
 
-	g := NewGossipStore(ID)
+	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION)
 
 	keys := g.GetStoreKeys()
 	if len(keys) != 0 {
@@ -372,8 +342,8 @@ func TestGossipStoreGetStoreKeys(t *testing.T) {
 func TestGossipStoreBlackBoxTests(t *testing.T) {
 	printTestInfo()
 
-	g1 := NewGossipStore(ID)
-	g2 := NewGossipStore(ID)
+	g1 := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION)
+	g2 := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION)
 
 	nodeLen := 3
 	keyList := []types.StoreKey{"key1", "key2", "key3", "key5"}
