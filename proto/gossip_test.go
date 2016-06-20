@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+const (
+	TestQuorumTimeout time.Duration = 10 * time.Second
+)
+
 // New returns an initialized Gossip node
 // which identifies itself with the given ip
 func NewGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string, version string) (*GossiperImpl, error) {
@@ -18,6 +22,7 @@ func NewGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string, vers
 		PushPullInterval: types.DEFAULT_PUSH_PULL_INTERVAL,
 		ProbeInterval:    types.DEFAULT_PROBE_INTERVAL,
 		ProbeTimeout:     types.DEFAULT_PROBE_TIMEOUT,
+		QuorumTimeout:    TestQuorumTimeout,
 	}
 	g.Init(ip, selfNodeId, 1, gi, version)
 	g.selfCorrect = false
@@ -86,11 +91,14 @@ func TestGossiperStartStopGetNode(t *testing.T) {
 		"127.0.0.5:8127",
 	}
 
-	gossipers := make([]*GossiperImpl, len(nodesIp))
+	clusterSize := len(nodesIp)
+	gossipers := make([]*GossiperImpl, clusterSize)
 	gossipers[0], _ = NewGossiperImpl(nodesIp[0], types.NodeId(strconv.Itoa(0)), []string{}, types.DEFAULT_GOSSIP_VERSION)
+	gossipers[0].UpdateClusterSize(clusterSize)
 	// test add nodes
 	for i := 1; i < len(nodesIp); i++ {
 		gossipers[i], _ = NewGossiperImpl(nodesIp[i], types.NodeId(strconv.Itoa(i)), []string{nodesIp[0]}, types.DEFAULT_GOSSIP_VERSION)
+		gossipers[i].UpdateClusterSize(clusterSize)
 	}
 
 	// try adding existing node by starting gossiper on other nodes
@@ -141,9 +149,11 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 		"127.0.0.3:9224",
 	}
 
+	clusterSize := len(nodesIp)
 	rand.Seed(time.Now().UnixNano())
 	id := types.NodeId(strconv.Itoa(0))
 	gZero, _ := NewGossiperImpl(nodesIp[0], id, []string{}, types.DEFAULT_GOSSIP_VERSION)
+	gZero.UpdateClusterSize(clusterSize)
 	var otherGossipers []*GossiperImpl
 	// First Start the gossipers on all other nodes
 	for j, peer := range nodesIp {
@@ -151,6 +161,7 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 			continue
 		}
 		g, _ := NewGossiperImpl(peer, types.NodeId(strconv.Itoa(j)), []string{nodesIp[0]}, types.DEFAULT_GOSSIP_VERSION)
+		g.UpdateClusterSize(clusterSize)
 		otherGossipers = append(otherGossipers, g)
 	}
 
@@ -173,7 +184,7 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 
 	res := gZero.GetStoreKeyValue(key)
 	if len(res) != 3 {
-		t.Error("Nodes down not reported ", res)
+		t.Error("Available nodes not reported ", res)
 	}
 
 	for nodeId, n := range res {
@@ -184,6 +195,13 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 		nid, ok := strconv.Atoi(string(nodeId))
 		if ok != nil {
 			t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+		}
+		if nid == 0 {
+			if n.Status != types.NODE_STATUS_WAITING_FOR_QUORUM {
+				t.Error("Gossiper ", nid,
+					"Expected node status to be: ", types.NODE_STATUS_WAITING_FOR_QUORUM,
+					" but found: ", n.Status)
+			}
 		}
 		if nid != 0 {
 			if n.Status != types.NODE_STATUS_DOWN {
@@ -203,6 +221,7 @@ func TestGossiperOneNodeNeverGossips(t *testing.T) {
 		"127.0.0.2:9623",
 		"127.0.0.3:9624",
 	}
+	clusterSize := len(nodes)
 
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
@@ -216,7 +235,7 @@ func TestGossiperOneNodeNeverGossips(t *testing.T) {
 		} else {
 			g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
 		}
-
+		g.UpdateClusterSize(clusterSize)
 		gossipers[i] = g
 	}
 
@@ -288,6 +307,9 @@ func TestGossiperOneNodeNeverGossips(t *testing.T) {
 	}
 }
 
+// For GossipVersion check tests we do not set the clusterSize.
+// This bypasses the quorum handling as clusterSize is 0 and every node
+// thus satisfies quorum.
 func TestGossiperNodeVersionMismatch(t *testing.T) {
 	printTestInfo()
 
@@ -450,6 +472,7 @@ func TestGossiperUpdateNodeIp(t *testing.T) {
 		"127.0.0.3:9327",
 	}
 
+	clusterSize := len(nodes)
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
 	var g *GossiperImpl
@@ -461,6 +484,7 @@ func TestGossiperUpdateNodeIp(t *testing.T) {
 			g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
 		}
 
+		g.UpdateClusterSize(clusterSize)
 		gossipers[i] = g
 	}
 
@@ -530,10 +554,6 @@ func verifyGossiperEquality(g1 *GossiperImpl, g2 *GossiperImpl, t *testing.T) {
 		g1Values := g1.GetStoreKeyValue(key)
 		g2Values := g2.GetStoreKeyValue(key)
 
-		t.Log("Key: ", key)
-		t.Log("g1Values: ", g1Values)
-		t.Log("g2Values: ", g2Values)
-
 		if len(g1Values) != len(g2Values) {
 			t.Fatal("Lens mismatch between g1 and g2 values")
 		}
@@ -548,6 +568,9 @@ func verifyGossiperEquality(g1 *GossiperImpl, g2 *GossiperImpl, t *testing.T) {
 	}
 }
 
+// For this test we disable quorum handling by not setting the cluster size.
+// By this we ensure that nodes going up and down is tested and their status
+// is being propagated correctly to other nodes.
 func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 	printTestInfo()
 
@@ -590,7 +613,6 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 
 	updateFunc := func(g *GossiperImpl, max int, t *testing.T) {
 		for i := 0; i < max; i++ {
-			t.Log("Updting data for ", g.NodeId())
 			g.UpdateSelf("sameKey", strconv.Itoa(i))
 			g.UpdateSelf(types.StoreKey(g.NodeId()), strconv.Itoa(i*i))
 			time.Sleep(g.GossipInterval() + time.Duration(rand.Intn(100)))
@@ -611,7 +633,6 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 
 	// verify all of them are same
 	for i := 1; i < len(nodes); i++ {
-		t.Log("Keys update : Checking equality of ", nodes[0], " and ", nodes[i])
 		verifyGossiperEquality(gossipers[nodes[0]], gossipers[nodes[i]], t)
 	}
 
@@ -631,7 +652,6 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 		if ok == false {
 			shutdownNodes[randId] = true
 			gossipers[nodes[randId]].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
-			t.Log("Shutdown node ", nodes[randId])
 			if len(shutdownNodes) == 3 {
 				break
 			}
@@ -645,7 +665,6 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 		if ok {
 			continue
 		}
-		t.Log("Shutdown update : Checking equality of ", nodes[0], " and ", nodes[i])
 		verifyGossiperEquality(gossipers[nodes[0]], gossipers[nodes[i]], t)
 
 		g := gossipers[nodes[i]]
@@ -667,4 +686,15 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 		gossipers[nodes[i]].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
 	}
 
+}
+
+func TestAllGossip(t *testing.T) {
+	TestGossiperHistory(t)
+	TestGossiperStartStopGetNode(t)
+	TestGossiperOnlyOneNodeGossips(t)
+	TestGossiperOneNodeNeverGossips(t)
+	TestGossiperNodeVersionMismatch(t)
+	TestGossiperGroupingOfNodesWithSameVersion(t)
+	TestGossiperUpdateNodeIp(t)
+	TestGossiperMultipleNodesGoingUpDown(t)
 }
