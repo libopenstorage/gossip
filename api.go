@@ -15,6 +15,9 @@ type GossipStore interface {
 	// for this node.
 	UpdateSelf(types.StoreKey, interface{})
 
+	// GetSelfStatus returns the node's status
+	GetSelfStatus() types.NodeStatus
+
 	// GetStoreValue returns the StoreValue associated with
 	// the given key
 	GetStoreKeyValue(key types.StoreKey) types.NodeValueMap
@@ -30,6 +33,9 @@ type GossipStore interface {
 
 	// UpdateSelfStatus
 	UpdateSelfStatus(types.NodeStatus)
+
+	// UpdateClusterSize
+	UpdateClusterSize(int)
 
 	// UpdateNodeStatus
 	UpdateNodeStatus(types.NodeId, types.NodeStatus) error
