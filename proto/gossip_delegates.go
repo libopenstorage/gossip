@@ -150,7 +150,6 @@ func (gd *GossipDelegate) MergeRemoteState(buf []byte, join bool) {
 		// NotifyJoin will take care of this info
 		return
 	}
-
 	gd.updateSelfTs()
 
 	gs := NewGossipSessionInfo("", types.GD_PEER_TO_ME)
@@ -192,7 +191,6 @@ func (gd *GossipDelegate) NotifyJoin(node *memberlist.Node) {
 	}
 
 	gd.history.AddLatest(gs)
-	gd.GetLocalNodeInfo(types.NodeId(node.Name))
 }
 
 // NotifyLeave is invoked when a node is detected to have left.
@@ -206,6 +204,7 @@ func (gd *GossipDelegate) NotifyLeave(node *memberlist.Node) {
 			logrus.Infof("Could not update status on NotifyLeave : %v", err.Error())
 			return
 		}
+		gd.sendQuorumEvents()
 	}
 
 	gs := NewGossipSessionInfo(node.Name, types.GD_PEER_TO_ME)
@@ -256,9 +255,9 @@ func (gd *GossipDelegate) NotifyAlive(node *memberlist.Node) error {
 	} else {
 		if diffNode.Status != types.NODE_STATUS_UP {
 			gd.UpdateNodeStatus(types.NodeId(node.Name), types.NODE_STATUS_UP)
+			gd.sendQuorumEvents()
 		}
 	}
 	gd.history.AddLatest(gs)
-
 	return nil
 }

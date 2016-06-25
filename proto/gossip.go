@@ -191,10 +191,12 @@ func (g *GossiperImpl) Start(knownIps []string) error {
 		log.Warnf("Unable to create memberlist: " + err.Error())
 		return err
 	}
+
+	log.Infof("%v : Starting Node : %v", time.Now(),g.NodeId())
 	// Set the memberlist in gossiper object
 	g.mlist = list
-	// We are started gossiping
-	g.UpdateSelfStatus(types.NODE_STATUS_WAITING_FOR_QUORUM)
+	g.SetQuorumTimeout(g.quorumTimeout)
+	//g.UpdateSelfStatus(types.NODE_STATUS_WAITING_FOR_QUORUM)
 
 	if len(knownIps) != 0 {
 		// Joining an existing cluster
@@ -204,9 +206,8 @@ func (g *GossiperImpl) Start(knownIps []string) error {
 			return err
 		}
 	}
-
 	// Check and update quorum periodically
-	go func() {
+	/*go func() {
 		for {
 			g.CheckAndUpdateQuorum()
 			select {
@@ -218,7 +219,7 @@ func (g *GossiperImpl) Start(knownIps []string) error {
 				time.Sleep(g.GossipInterval())
 			}
 		}
-	}()
+	}()*/
 
 	return nil
 }
@@ -228,6 +229,7 @@ func (g *GossiperImpl) Stop(leaveTimeout time.Duration) error {
 		return fmt.Errorf("Gossiper already stopped")
 	}
 
+	log.Infof("Stopping Node %v", g.NodeId())
 	err := g.mlist.Leave(leaveTimeout)
 	if err != nil {
 		return err
@@ -237,7 +239,7 @@ func (g *GossiperImpl) Stop(leaveTimeout time.Duration) error {
 		return err
 	}
 	g.shutDown = true
-	g.stopQuorumCheck <- true
+	//g.stopQuorumCheck <- true
 	return nil
 }
 

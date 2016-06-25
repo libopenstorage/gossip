@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	TestQuorumTimeout time.Duration = 10 * time.Second
+	TestQuorumTimeout time.Duration = 30 * time.Second
 )
 
 // New returns an initialized Gossip node
@@ -186,6 +186,9 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 	if len(res) != 3 {
 		t.Error("Available nodes not reported ", res)
 	}
+
+	// Sleep for gossip quorum timeout
+	time.Sleep(gZero.quorumTimeout + 2*time.Second)
 
 	for nodeId, n := range res {
 		if nodeId != n.Id {
@@ -494,6 +497,7 @@ func TestGossiperUpdateNodeIp(t *testing.T) {
 		g.UpdateSelf(key, value+strconv.Itoa(i))
 	}
 
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
 	// Bring down node 0 and bring it back up with changed IP
 	gossipers[0].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
 	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
@@ -681,20 +685,8 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 			}
 		}
 	}
-
 	for i := 0; i < len(nodes); i++ {
 		gossipers[nodes[i]].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
 	}
 
-}
-
-func TestAllGossip(t *testing.T) {
-	TestGossiperHistory(t)
-	TestGossiperStartStopGetNode(t)
-	TestGossiperOnlyOneNodeGossips(t)
-	TestGossiperOneNodeNeverGossips(t)
-	TestGossiperNodeVersionMismatch(t)
-	TestGossiperGroupingOfNodesWithSameVersion(t)
-	TestGossiperUpdateNodeIp(t)
-	TestGossiperMultipleNodesGoingUpDown(t)
 }

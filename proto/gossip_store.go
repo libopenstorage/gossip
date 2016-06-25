@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/libopenstorage/gossip/types"
 )
 
@@ -26,13 +27,16 @@ type GossipStoreImpl struct {
 	// determining the cluster quorum
 	clusterSize int
 	// Ts at which we lost quorum
-	lostQuorumTs time.Time
+	lostQuorumTs  time.Time
+	NodeEvent     chan bool
+	quorumTimeout time.Duration
 }
 
 func NewGossipStore(id types.NodeId, version string) *GossipStoreImpl {
 	n := &GossipStoreImpl{}
 	n.InitStore(id, version)
 	n.selfCorrect = false
+	n.NodeEvent = make(chan bool, 100)
 	return n
 }
 
@@ -40,12 +44,16 @@ func (s *GossipStoreImpl) NodeId() types.NodeId {
 	return s.id
 }
 
+func (s *GossipStoreImpl) SetQuorumTimeout(timeout time.Duration) {
+	s.quorumTimeout = timeout
+}
+
 // UpdateClusterSize is called from an external source indicating the cluster size
 func (s *GossipStoreImpl) UpdateClusterSize(clusterSize int) {
 	s.Lock()
-	defer s.Unlock()
-
 	s.clusterSize = clusterSize
+	s.Unlock()
+	s.sendQuorumEvents()
 }
 
 func (s *GossipStoreImpl) GetClusterSize() int {
@@ -183,9 +191,8 @@ func statusValid(s types.NodeStatus) bool {
 
 func (s *GossipStoreImpl) NewNode(id types.NodeId) {
 	s.Lock()
-	defer s.Unlock()
-
 	if _, ok := s.nodeMap[id]; ok {
+		s.Unlock()
 		return
 	}
 
@@ -197,8 +204,9 @@ func (s *GossipStoreImpl) NewNode(id types.NodeId) {
 		Status:             types.NODE_STATUS_UP,
 		Value:              make(types.StoreMap),
 	}
-
 	s.nodeMap[id] = newNodeInfo
+	s.Unlock()
+	s.sendQuorumEvents()
 }
 
 func (s *GossipStoreImpl) MetaInfo() types.NodeMetaInfo {
@@ -230,6 +238,116 @@ func (s *GossipStoreImpl) GetLocalNodeInfo(id types.NodeId) (types.NodeInfo, err
 		return types.NodeInfo{}, fmt.Errorf("Node with id (%v) not found", id)
 	}
 	return nodeInfo, nil
+}
+
+func (s *GossipStoreImpl) sendQuorumEvents() {
+	if s.GetSelfStatus() == types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM {
+		logrus.Infof("got in send quorum events %v", s.NodeId())
+		select {
+		case s.NodeEvent <- true:
+			logrus.Infof("Sent an event")
+		case <-time.After(5 * time.Second):
+			logrus.Infof("Timeout on sending event")
+		}
+	} else {
+		//logrus.Infof("For node %v: in send quorum events. Calling CAQ", s.NodeId())
+		s.CheckAndUpdateQuorum()
+	}
+}
+
+func (s *GossipStoreImpl) recvQuorumEvents() {
+	for {
+		allEventsHandled := false
+		diffTime := time.Since(s.GetLostQuorumTs())
+		if s.quorumTimeout < diffTime {
+			// Ideally this should not happen. The select timeout should get triggered before
+			// we reach this state.
+			// This an extra check
+			if s.GetSelfStatus() == types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM {
+				// Our status did not change to Up
+				// Change the status to waiting for quorum
+				logrus.Warnf("Quorum Timeout for Node %v with status:"+
+					" (UP_AND_WAITING_FOR_QUORUM). "+
+					"New Status: (WAITING_FOR_QUORUM)", s.NodeId())
+				s.UpdateSelfStatus(types.NODE_STATUS_WAITING_FOR_QUORUM)
+			}
+			break
+		}
+		selectTimeout := s.quorumTimeout - diffTime
+		logrus.Infof("Waiting for event on channel")
+		select {
+		case eventOccured := <-s.NodeEvent:
+			// An event has occured. Lets check the quorum again
+			if eventOccured {
+				logrus.Infof("Event occured Node %v with status (UP_AND_WAITING_FOR_QUORUM)", s.NodeId())
+			}
+			s.CheckAndUpdateQuorum()
+		case <-time.After(selectTimeout):
+			if s.GetSelfStatus() == types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM {
+				// Out status did not change to Up
+				// Change the status to waiting for quorum
+				logrus.Warnf("Quorum Timeout for Node %v with status:"+
+					" (UP_AND_WAITING_FOR_QUORUM). "+
+					"New Status: (WAITING_FOR_QUORUM)", s.NodeId())
+				s.UpdateSelfStatus(types.NODE_STATUS_WAITING_FOR_QUORUM)
+			}
+			// As a timeout has occured we do not need to receive any more events.
+			// break the loop
+			allEventsHandled = true
+		}
+		if allEventsHandled {
+			// End the loop and the go-routine
+			break
+		}
+	}
+}
+
+func (s *GossipStoreImpl) CheckAndUpdateQuorum() {
+	clusterSize := s.GetClusterSize()
+
+	quorum := (clusterSize / 2) + 1
+	selfNodeId := s.NodeId()
+
+	upNodes := 0
+	var selfStatus types.NodeStatus
+
+	localNodeInfoMap := s.GetLocalState()
+	for _, nodeInfo := range localNodeInfoMap {
+		if nodeInfo.Id == selfNodeId {
+			selfStatus = nodeInfo.Status
+		}
+		if nodeInfo.Status == types.NODE_STATUS_UP ||
+			nodeInfo.Status == types.NODE_STATUS_WAITING_FOR_QUORUM ||
+			nodeInfo.Status == types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM {
+			upNodes++
+		}
+	}
+
+	if upNodes < quorum {
+		if selfStatus == types.NODE_STATUS_DOWN {
+			// We are already down. No need of updating the status based on quorum.
+			return
+		} else if selfStatus == types.NODE_STATUS_UP {
+			// We were up, but now we have lost quorum
+			logrus.Warnf("Node %v with status: (UP) lost quorum. "+
+				"New Status: (UP_AND_WAITING_FOR_QUORUM)", s.NodeId())
+			s.UpdateLostQuorumTs()
+			go s.recvQuorumEvents()
+			s.UpdateSelfStatus(types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM)
+		} else {
+			
+			// Do nothing. Let the status remain same.
+			//s.UpdateSelfStatus(types.NODE_STATUS_WAITING_FOR_QUORUM)
+		}
+	} else {
+		if selfStatus != types.NODE_STATUS_UP {
+			logrus.Infof("Node %v now in quorum. "+
+				"New Status: (UP)", s.NodeId())
+			s.UpdateSelfStatus(types.NODE_STATUS_UP)
+		} else {
+			// No need to update status, we are already up
+		}
+	}
 }
 
 func (s *GossipStoreImpl) Update(diff types.NodeInfoMap) {
