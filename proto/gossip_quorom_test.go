@@ -77,8 +77,8 @@ func TestQuorumNodeLoosesQuorumAndGainsBack(t *testing.T) {
 	// Node 0 should loose quorom 1/2
 	g0.UpdateClusterSize(2)
 	selfStatus = g0.GetSelfStatus()
-	if selfStatus != types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM {
-		t.Error("Expected Node 0 to have status: ", types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM,
+	if selfStatus != types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
+		t.Error("Expected Node 0 to have status: ", types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM,
 			" Got: ", selfStatus)
 	}
 
@@ -86,8 +86,8 @@ func TestQuorumNodeLoosesQuorumAndGainsBack(t *testing.T) {
 	time.Sleep(g0.quorumTimeout + 2*time.Second)
 
 	selfStatus = g0.GetSelfStatus()
-	if selfStatus != types.NODE_STATUS_WAITING_FOR_QUORUM {
-		t.Error("Expected Node 0 to have status: ", types.NODE_STATUS_WAITING_FOR_QUORUM,
+	if selfStatus != types.NODE_STATUS_NOT_IN_QUORUM {
+		t.Error("Expected Node 0 to have status: ", types.NODE_STATUS_NOT_IN_QUORUM,
 			" Got: ", selfStatus)
 	}
 
@@ -128,8 +128,8 @@ func TestQuorumTwoNodesLooseConnectivity(t *testing.T) {
 	// Simulate new node was added by updating the cluster size, but the new node is not talking to node0
 	// Node 0 should loose quorom 1/2
 	g0.UpdateClusterSize(2)
-	if g0.GetSelfStatus() != types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM {
-		t.Error("Expected Node 0 to have status: ", types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM)
+	if g0.GetSelfStatus() != types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
+		t.Error("Expected Node 0 to have status: ", types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM)
 	}
 
 	// Lets start the actual node 1. We do not supply node 0 Ip address here so that node 1 does not talk to node 0
@@ -141,11 +141,11 @@ func TestQuorumTwoNodesLooseConnectivity(t *testing.T) {
 	// the quorum timeout
 	time.Sleep(g0.quorumTimeout + 2*time.Second)
 
-	if g0.GetSelfStatus() != types.NODE_STATUS_WAITING_FOR_QUORUM {
-		t.Error("Expected Node 0 to have status: ", types.NODE_STATUS_WAITING_FOR_QUORUM)
+	if g0.GetSelfStatus() != types.NODE_STATUS_NOT_IN_QUORUM {
+		t.Error("Expected Node 0 to have status: ", types.NODE_STATUS_NOT_IN_QUORUM)
 	}
-	if g1.GetSelfStatus() != types.NODE_STATUS_WAITING_FOR_QUORUM {
-		t.Error("Expected Node 1 to have status: ", types.NODE_STATUS_WAITING_FOR_QUORUM)
+	if g1.GetSelfStatus() != types.NODE_STATUS_NOT_IN_QUORUM {
+		t.Error("Expected Node 1 to have status: ", types.NODE_STATUS_NOT_IN_QUORUM)
 	}
 }
 
@@ -184,7 +184,7 @@ func TestQuorumOneNodeIsolated(t *testing.T) {
 	// Simulate isolation by stopping gossiper for node 1 and starting it back,
 	// but by not providing peer IPs and setting cluster size to 3.
 	gossipers[1].Stop(time.Duration(10) * time.Second)
-	gossipers[1].InitStore(types.NodeId("1"), "v1")
+	gossipers[1].InitStore(types.NodeId("1"), "v1", types.NODE_STATUS_NOT_IN_QUORUM)
 	gossipers[1].Start([]string{})
 
 	// Lets sleep so that the nodes gossip and update their quorum
@@ -192,8 +192,8 @@ func TestQuorumOneNodeIsolated(t *testing.T) {
 
 	for i, g := range gossipers {
 		if i == 1 {
-			if g.GetSelfStatus() != types.NODE_STATUS_WAITING_FOR_QUORUM {
-				t.Error("Expected Node ", i, " status to be ", types.NODE_STATUS_WAITING_FOR_QUORUM, " Got: ", g.GetSelfStatus())
+			if g.GetSelfStatus() != types.NODE_STATUS_NOT_IN_QUORUM {
+				t.Error("Expected Node ", i, " status to be ", types.NODE_STATUS_NOT_IN_QUORUM, " Got: ", g.GetSelfStatus())
 			}
 			continue
 		}
@@ -219,14 +219,14 @@ func TestQuorumNetworkPartition(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
 		var g *GossiperImpl
-		g, _ = startNode(t, nodes[i], nodeId, []string{nodes[0], nodes[1], nodes[2]}, 3)
+		g, _ = startNode(t, nodes[i], nodeId, []string{nodes[0], nodes[1], nodes[2]}, 1)
 		gossipers = append(gossipers, g)
 	}
 	// Parition 2
 	for i := 3; i < 5; i++ {
 		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
 		var g *GossiperImpl
-		g, _ = startNode(t, nodes[i], nodeId, []string{nodes[3], nodes[4]}, 2)
+		g, _ = startNode(t, nodes[i], nodeId, []string{nodes[3], nodes[4]}, 1)
 		gossipers = append(gossipers, g)
 	}
 	// Let the nodes gossip
@@ -253,16 +253,16 @@ func TestQuorumNetworkPartition(t *testing.T) {
 	}
 	// Parition 2
 	for i := 3; i < 5; i++ {
-		if gossipers[i].GetSelfStatus() != types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM {
-			t.Error("Expected Node ", i, " status to be ", types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM, " Got: ", gossipers[i].GetSelfStatus())
+		if gossipers[i].GetSelfStatus() != types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
+			t.Error("Expected Node ", i, " status to be ", types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM, " Got: ", gossipers[i].GetSelfStatus())
 		}
 	}
 
 	time.Sleep(TestQuorumTimeout)
 	// Parition 2
 	for i := 3; i < 5; i++ {
-		if gossipers[i].GetSelfStatus() != types.NODE_STATUS_WAITING_FOR_QUORUM {
-			t.Error("Expected Node ", i, " status to be ", types.NODE_STATUS_WAITING_FOR_QUORUM, " Got: ", gossipers[i].GetSelfStatus())
+		if gossipers[i].GetSelfStatus() != types.NODE_STATUS_NOT_IN_QUORUM {
+			t.Error("Expected Node ", i, " status to be ", types.NODE_STATUS_NOT_IN_QUORUM, " Got: ", gossipers[i].GetSelfStatus())
 		}
 	}
 }
@@ -283,14 +283,25 @@ func TestQuorumEventHandling(t *testing.T) {
 	for i := 0; i < len(nodes); i++ {
 		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
 		var g *GossiperImpl
-		g, _ = startNode(t, nodes[i], nodeId, []string{nodes[0]}, 3)
+		g, _ = startNode(t, nodes[i], nodeId, []string{nodes[0]}, 1)
 		gossipers = append(gossipers, g)
 	}
 
-	// Bring node 4 down. Quorum is still up
-	gossipers[4].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
-
+	// Let the nodes gossip
 	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+
+	// Update the cluster size to 5
+	for i := 0; i < len(nodes); i++ {
+		gossipers[i].UpdateClusterSize(5)
+	}
+
+	time.Sleep(2 * time.Second)
+
+	// Bring node 4 down.
+	gossipers[4].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+	//time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+
+	time.Sleep(2 * time.Second)
 
 	for i := 0; i < len(nodes)-1; i++ {
 		if gossipers[i].GetSelfStatus() != types.NODE_STATUS_UP {
@@ -303,11 +314,11 @@ func TestQuorumEventHandling(t *testing.T) {
 	gossipers[2].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
 	gossipers[1].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
 
-	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes) + 1))
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
 	//time.Sleep(types.DEFAULT_GOSSIP_INTERVAL)
 
-	if gossipers[0].GetSelfStatus() != types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM {
-		t.Error("Expected Node 0 status to be ", types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM, " Got: ", gossipers[0].GetSelfStatus())
+	if gossipers[0].GetSelfStatus() != types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
+		t.Error("Expected Node 0 status to be ", types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM, " Got: ", gossipers[0].GetSelfStatus())
 	}
 
 	// Start Node 2
@@ -317,15 +328,15 @@ func TestQuorumEventHandling(t *testing.T) {
 	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL)
 
 	// Node 0 still not in quorum. But should be up as quorum timeout not occured yet
-	if gossipers[0].GetSelfStatus() != types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM {
-		t.Error("Expected Node 0  status to be ", types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM, " Got: ", gossipers[0].GetSelfStatus())
+	if gossipers[0].GetSelfStatus() != types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
+		t.Error("Expected Node 0  status to be ", types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM, " Got: ", gossipers[0].GetSelfStatus())
 	}
 
 	// Sleep for quorum timeout to occur
 	time.Sleep(gossipers[0].quorumTimeout + 2*time.Second)
 
-	if gossipers[0].GetSelfStatus() != types.NODE_STATUS_WAITING_FOR_QUORUM {
-		t.Error("Expected Node 0 status to be ", types.NODE_STATUS_WAITING_FOR_QUORUM, " Got: ", gossipers[0].GetSelfStatus())
+	if gossipers[0].GetSelfStatus() != types.NODE_STATUS_NOT_IN_QUORUM {
+		t.Error("Expected Node 0 status to be ", types.NODE_STATUS_NOT_IN_QUORUM, " Got: ", gossipers[0].GetSelfStatus())
 	}
 
 	// Start Node 1

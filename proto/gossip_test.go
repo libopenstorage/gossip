@@ -153,7 +153,6 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	id := types.NodeId(strconv.Itoa(0))
 	gZero, _ := NewGossiperImpl(nodesIp[0], id, []string{}, types.DEFAULT_GOSSIP_VERSION)
-	gZero.UpdateClusterSize(clusterSize)
 	var otherGossipers []*GossiperImpl
 	// First Start the gossipers on all other nodes
 	for j, peer := range nodesIp {
@@ -168,6 +167,9 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 	// Let the nodes gossip and populate their memberlist
 	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodesIp)))
 
+	gZero.UpdateClusterSize(clusterSize)
+	otherGossipers[0].UpdateClusterSize(clusterSize)
+	otherGossipers[1].UpdateClusterSize(clusterSize)
 	// Now Kill the other nodes
 	for _, og := range otherGossipers {
 		err := og.Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodesIp)+1))
@@ -182,13 +184,13 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 
 	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodesIp)+1))
 
+	// Sleep for gossip quorum timeout
+	time.Sleep(gZero.quorumTimeout + 2*time.Second)
+
 	res := gZero.GetStoreKeyValue(key)
 	if len(res) != 3 {
 		t.Error("Available nodes not reported ", res)
 	}
-
-	// Sleep for gossip quorum timeout
-	time.Sleep(gZero.quorumTimeout + 2*time.Second)
 
 	for nodeId, n := range res {
 		if nodeId != n.Id {
@@ -200,9 +202,9 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 			t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
 		}
 		if nid == 0 {
-			if n.Status != types.NODE_STATUS_WAITING_FOR_QUORUM {
+			if n.Status != types.NODE_STATUS_NOT_IN_QUORUM {
 				t.Error("Gossiper ", nid,
-					"Expected node status to be: ", types.NODE_STATUS_WAITING_FOR_QUORUM,
+					"Expected node status to be: ", types.NODE_STATUS_NOT_IN_QUORUM,
 					" but found: ", n.Status)
 			}
 		}
