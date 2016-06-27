@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	//"github.com/Sirupsen/logrus"
 	"github.com/libopenstorage/gossip/types"
 )
 
@@ -28,36 +28,17 @@ type GossipStoreImpl struct {
 	clusterSize int
 	// Ts at which we lost quorum
 	lostQuorumTs  time.Time
-	NodeEvent     chan bool
-	quorumTimeout time.Duration
 }
 
 func NewGossipStore(id types.NodeId, version string) *GossipStoreImpl {
 	n := &GossipStoreImpl{}
-	n.InitStore(id, version)
+	n.InitStore(id, version, types.NODE_STATUS_NOT_IN_QUORUM)
 	n.selfCorrect = false
-	n.NodeEvent = make(chan bool, 100)
 	return n
 }
 
 func (s *GossipStoreImpl) NodeId() types.NodeId {
 	return s.id
-}
-
-func (s *GossipStoreImpl) SetQuorumTimeout(timeout time.Duration) {
-	s.quorumTimeout = timeout
-}
-
-// UpdateClusterSize is called from an external source indicating the cluster size
-func (s *GossipStoreImpl) UpdateClusterSize(clusterSize int) {
-	s.Lock()
-	s.clusterSize = clusterSize
-	s.Unlock()
-	s.sendQuorumEvents()
-}
-
-func (s *GossipStoreImpl) GetClusterSize() int {
-	return s.clusterSize
 }
 
 func (s *GossipStoreImpl) UpdateLostQuorumTs() {
@@ -71,7 +52,7 @@ func (s *GossipStoreImpl) GetLostQuorumTs() time.Time {
 	return s.lostQuorumTs
 }
 
-func (s *GossipStoreImpl) InitStore(id types.NodeId, version string) {
+func (s *GossipStoreImpl) InitStore(id types.NodeId, version string, status types.NodeStatus) {
 	s.nodeMap = make(types.NodeInfoMap)
 	s.id = id
 	s.selfCorrect = true
@@ -81,7 +62,7 @@ func (s *GossipStoreImpl) InitStore(id types.NodeId, version string) {
 		GenNumber:    s.GenNumber,
 		Value:        make(types.StoreMap),
 		LastUpdateTs: time.Now(),
-		Status:       types.NODE_STATUS_WAITING_FOR_QUORUM,
+		Status:       status,
 	}
 	s.nodeMap[s.id] = nodeInfo
 }
@@ -206,7 +187,6 @@ func (s *GossipStoreImpl) NewNode(id types.NodeId) {
 	}
 	s.nodeMap[id] = newNodeInfo
 	s.Unlock()
-	s.sendQuorumEvents()
 }
 
 func (s *GossipStoreImpl) MetaInfo() types.NodeMetaInfo {
@@ -240,7 +220,7 @@ func (s *GossipStoreImpl) GetLocalNodeInfo(id types.NodeId) (types.NodeInfo, err
 	return nodeInfo, nil
 }
 
-func (s *GossipStoreImpl) sendQuorumEvents() {
+/*func (s *GossipStoreImpl) sendQuorumEvents() {
 	if s.GetSelfStatus() == types.NODE_STATUS_UP_AND_WAITING_FOR_QUORUM {
 		logrus.Infof("got in send quorum events %v", s.NodeId())
 		select {
@@ -348,7 +328,7 @@ func (s *GossipStoreImpl) CheckAndUpdateQuorum() {
 			// No need to update status, we are already up
 		}
 	}
-}
+}*/
 
 func (s *GossipStoreImpl) Update(diff types.NodeInfoMap) {
 	s.Lock()
@@ -368,4 +348,14 @@ func (s *GossipStoreImpl) Update(diff types.NodeInfoMap) {
 			s.nodeMap[id] = newNodeInfo
 		}
 	}
+}
+
+func (s *GossipStoreImpl) updateClusterSize(clusterSize int) {
+	s.Lock()
+	s.clusterSize = clusterSize
+	s.Unlock()
+}
+
+func (s *GossipStoreImpl) getClusterSize() int {
+	return s.clusterSize
 }
