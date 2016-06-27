@@ -185,6 +185,7 @@ func (g *GossiperImpl) Init(
 }
 
 func (g *GossiperImpl) Start(knownIps []string) error {
+	g.InitCurrentState(len(knownIps) + 1)
 	list, err := ml.Create(g.mlConf)
 	if err != nil {
 		log.Warnf("Unable to create memberlist: " + err.Error())
