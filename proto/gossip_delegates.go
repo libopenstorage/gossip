@@ -209,7 +209,7 @@ func (gd *GossipDelegate) NotifyJoin(node *memberlist.Node) {
 		gs.Err = err.Error()
 		logrus.Infof(gs.Err)
 	} else {
-		gd.NewNode(types.NodeId(types.NodeId(node.Name)))
+		gd.AddNode(types.NodeId(types.NodeId(node.Name)), types.NODE_STATUS_UP)
 		gd.triggerStateEvent(types.NODE_ALIVE)
 		gs.Err = ""
 	}
@@ -276,7 +276,7 @@ func (gd *GossipDelegate) NotifyAlive(node *memberlist.Node) error {
 			// Returning a non-nil err value
 			return err
 		} else {
-			gd.NewNode(types.NodeId(node.Name))
+			gd.AddNode(types.NodeId(node.Name), types.NODE_STATUS_UP)
 			gd.triggerStateEvent(types.NODE_ALIVE)
 		}
 	} else {

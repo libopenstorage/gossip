@@ -91,14 +91,20 @@ func TestGossiperStartStopGetNode(t *testing.T) {
 		"127.0.0.5:8127",
 	}
 
+	peers := make(map[types.NodeId]string)
+	for i, ip := range nodesIp {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		peers[nodeId] = ip
+	}
+
 	clusterSize := len(nodesIp)
 	gossipers := make([]*GossiperImpl, clusterSize)
 	gossipers[0], _ = NewGossiperImpl(nodesIp[0], types.NodeId(strconv.Itoa(0)), []string{}, types.DEFAULT_GOSSIP_VERSION)
-	gossipers[0].UpdateClusterSize(clusterSize)
+	gossipers[0].UpdateCluster(peers)
 	// test add nodes
 	for i := 1; i < len(nodesIp); i++ {
 		gossipers[i], _ = NewGossiperImpl(nodesIp[i], types.NodeId(strconv.Itoa(i)), []string{nodesIp[0]}, types.DEFAULT_GOSSIP_VERSION)
-		gossipers[i].UpdateClusterSize(clusterSize)
+		gossipers[i].UpdateCluster(peers)
 	}
 
 	// try adding existing node by starting gossiper on other nodes
@@ -149,7 +155,12 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 		"127.0.0.3:9224",
 	}
 
-	clusterSize := len(nodesIp)
+	peers := make(map[types.NodeId]string)
+	for i, ip := range nodesIp {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		peers[nodeId] = ip
+	}
+
 	rand.Seed(time.Now().UnixNano())
 	id := types.NodeId(strconv.Itoa(0))
 	gZero, _ := NewGossiperImpl(nodesIp[0], id, []string{}, types.DEFAULT_GOSSIP_VERSION)
@@ -160,16 +171,16 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 			continue
 		}
 		g, _ := NewGossiperImpl(peer, types.NodeId(strconv.Itoa(j)), []string{nodesIp[0]}, types.DEFAULT_GOSSIP_VERSION)
-		g.UpdateClusterSize(clusterSize)
+		g.UpdateCluster(peers)
 		otherGossipers = append(otherGossipers, g)
 	}
 
 	// Let the nodes gossip and populate their memberlist
 	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodesIp)))
 
-	gZero.UpdateClusterSize(clusterSize)
-	otherGossipers[0].UpdateClusterSize(clusterSize)
-	otherGossipers[1].UpdateClusterSize(clusterSize)
+	gZero.UpdateCluster(peers)
+	otherGossipers[0].UpdateCluster(peers)
+	otherGossipers[1].UpdateCluster(peers)
 	// Now Kill the other nodes
 	for _, og := range otherGossipers {
 		err := og.Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodesIp)+1))
@@ -226,7 +237,11 @@ func TestGossiperOneNodeNeverGossips(t *testing.T) {
 		"127.0.0.2:9623",
 		"127.0.0.3:9624",
 	}
-	clusterSize := len(nodes)
+	peers := make(map[types.NodeId]string)
+	for i, ip := range nodes {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		peers[nodeId] = ip
+	}
 
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
@@ -240,7 +255,7 @@ func TestGossiperOneNodeNeverGossips(t *testing.T) {
 		} else {
 			g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
 		}
-		g.UpdateClusterSize(clusterSize)
+		g.UpdateCluster(peers)
 		gossipers[i] = g
 	}
 
@@ -477,7 +492,12 @@ func TestGossiperUpdateNodeIp(t *testing.T) {
 		"127.0.0.3:9327",
 	}
 
-	clusterSize := len(nodes)
+	peers := make(map[types.NodeId]string)
+	for i, ip := range nodes {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		peers[nodeId] = ip
+	}
+
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
 	var g *GossiperImpl
@@ -489,7 +509,7 @@ func TestGossiperUpdateNodeIp(t *testing.T) {
 			g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
 		}
 
-		g.UpdateClusterSize(clusterSize)
+		g.UpdateCluster(peers)
 		gossipers[i] = g
 	}
 
