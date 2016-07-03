@@ -712,3 +712,156 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 	}
 
 }
+
+func TestGossiperAddNodeExternally(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{
+		"127.0.0.1:9158",
+		"127.0.0.2:9159",
+	}
+
+	peers := make(map[types.NodeId]string)
+	for i, ip := range nodes {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		peers[nodeId] = ip
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	gossipers := make(map[int]*GossiperImpl)
+	var g *GossiperImpl
+	for i, nodeId := range nodes {
+		id := types.NodeId(strconv.Itoa(i))
+		g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
+		g.UpdateCluster(peers)
+		gossipers[i] = g
+	}
+
+	nodes = append(nodes, "127.0.0.3:9160")
+	peers[types.NodeId("2")] = nodes[2]
+
+	for _, g := range gossipers {
+		g.UpdateCluster(peers)
+	}
+
+	key := types.StoreKey("somekey")
+	value := "someValue"
+	for i, g := range gossipers {
+		g.UpdateSelf(key, value+strconv.Itoa(i))
+	}
+
+	// Let the nodes gossip and populate their memberlists
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+
+	// The new node should be added
+	for i, g := range gossipers {
+		res := g.GetStoreKeyValue(key)
+		for nodeId, n := range res {
+			nid, ok := strconv.Atoi(string(nodeId))
+			if ok != nil {
+				t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+			}
+			if nid == 2 {
+				if n.Status != types.NODE_STATUS_DOWN {
+					t.Error("Gossiper ", i,
+						"Expected node status to be down: ", nodeId, " n:", n.Status)
+				}
+			} else {
+				if n.Status != types.NODE_STATUS_UP {
+					t.Error("Gossiper ", i, "Expected node to be up: ", nodeId,
+						" n:", n)
+				}
+			}
+		}
+	}
+
+	// Start node 2
+	g2, _ := NewGossiperImpl(nodes[2], types.NodeId("2"), []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
+	g2.UpdateCluster(peers)
+
+	// Let the nodes gossip and populate their memberlists
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+
+	// The new node should be added
+	for i, g := range gossipers {
+		res := g.GetStoreKeyValue(key)
+		for nodeId, n := range res {
+			if n.Status != types.NODE_STATUS_UP {
+				t.Error("Gossiper ", i, "Expected node to be up: ", nodeId,
+					" n:", n)
+			}
+		}
+	}
+}
+
+func TestGossiperRemoveNodeExternally(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{
+		"127.0.0.1:9161",
+		"127.0.0.2:9162",
+		"127.0.0.3:9163",
+	}
+
+	peers := make(map[types.NodeId]string)
+	for i, ip := range nodes {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		peers[nodeId] = ip
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	gossipers := make(map[int]*GossiperImpl)
+	var g *GossiperImpl
+	for i, nodeId := range nodes {
+		id := types.NodeId(strconv.Itoa(i))
+		g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
+		g.UpdateCluster(peers)
+		gossipers[i] = g
+	}
+
+	key := types.StoreKey("somekey")
+	value := "someValue"
+	for i, g := range gossipers {
+		g.UpdateSelf(key, value+strconv.Itoa(i))
+	}
+
+	// Let the nodes gossip and populate their memberlists
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+
+	// Lets remove one of the nodes
+	delete(peers, types.NodeId("0"))
+	for i, g := range gossipers {
+		if i == 0 {
+			continue
+		}
+		g.UpdateCluster(peers)
+	}
+
+	for i, g := range gossipers {
+		res := g.GetStoreKeyValue(key)
+		if i != 0 {
+			if len(res) != 2 {
+				t.Error("Gossiper ", i, " still has an update about (%v) nodes instead of 2")
+			}
+		} else {
+			// For node 0 we do not want any checks
+			continue
+		}
+
+		for nodeId, n := range res {
+			if nodeId != n.Id {
+				t.Error("Gossiper ", i, "Id does not match ",
+					nodeId, " n:", n.Id)
+			}
+			nid, ok := strconv.Atoi(string(nodeId))
+			if ok != nil {
+				t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+			}
+			if nid == 0 {
+				t.Error("Gossiper ", i,
+					"Expected no update from node 0")
+			}
+		}
+	}
+
+}

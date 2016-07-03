@@ -31,7 +31,7 @@ func TestQuorumAllNodesUpOneByOne(t *testing.T) {
 
 	// Start Node0 with cluster size 1
 	node0 := types.NodeId("0")
-	g0, _ := startNode(t, nodes[0], node0, []string{}, map[types.NodeId]string{node0:nodes[0]})
+	g0, _ := startNode(t, nodes[0], node0, []string{}, map[types.NodeId]string{node0: nodes[0]})
 
 	if g0.GetSelfStatus() != types.NODE_STATUS_UP {
 		t.Error("Expected Node 0 to have status: ", types.NODE_STATUS_UP)
@@ -65,7 +65,7 @@ func TestQuorumNodeLoosesQuorumAndGainsBack(t *testing.T) {
 	node0 := types.NodeId("0")
 	node1 := types.NodeId("1")
 	// Start Node 0
-	g0, _ := startNode(t, nodes[0], node0, []string{}, map[types.NodeId]string{node0:nodes[0]})
+	g0, _ := startNode(t, nodes[0], node0, []string{}, map[types.NodeId]string{node0: nodes[0]})
 
 	selfStatus := g0.GetSelfStatus()
 	if selfStatus != types.NODE_STATUS_UP {
@@ -119,7 +119,7 @@ func TestQuorumTwoNodesLooseConnectivity(t *testing.T) {
 
 	node0 := types.NodeId("0")
 	node1 := types.NodeId("1")
-	g0, _ := startNode(t, nodes[0], node0, []string{}, map[types.NodeId]string{node0:nodes[0]})
+	g0, _ := startNode(t, nodes[0], node0, []string{}, map[types.NodeId]string{node0: nodes[0]})
 
 	if g0.GetSelfStatus() != types.NODE_STATUS_UP {
 		t.Error("Expected Node 0 to have status: ", types.NODE_STATUS_UP)
@@ -300,12 +300,11 @@ func TestQuorumEventHandling(t *testing.T) {
 	// Let the nodes gossip
 	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
 
-
 	peers := make(map[types.NodeId]string)
 	for i, ip := range nodes {
 		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
 		peers[nodeId] = ip
-	}	
+	}
 	// Update the cluster size to 5
 	for i := 0; i < len(nodes); i++ {
 		gossipers[i].UpdateCluster(peers)
@@ -366,4 +365,106 @@ func TestQuorumEventHandling(t *testing.T) {
 		t.Error("Expected Node 0 status to be ", types.NODE_STATUS_UP, " Got: ", gossipers[0].GetSelfStatus())
 	}
 
+}
+
+func TestQuorumRemoveNodes(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{
+		"127.0.0.1:9919",
+		"127.0.0.2:9920",
+		"127.0.0.3:9921",
+		"127.0.0.4:9922",
+	}
+
+	peers := make(map[types.NodeId]string)
+	for i, ip := range nodes {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		peers[nodeId] = ip
+	}
+
+	var gossipers []*GossiperImpl
+	for i, ip := range nodes {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		var g *GossiperImpl
+		if i == 0 {
+			g, _ = startNode(t, ip, nodeId, []string{}, peers)
+		} else {
+			g, _ = startNode(t, ip, nodeId, []string{nodes[0]}, peers)
+		}
+
+		gossipers = append(gossipers, g)
+	}
+
+	// Lets sleep so that the nodes gossip and update their quorum
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
+
+	for i, g := range gossipers {
+		if g.GetSelfStatus() != types.NODE_STATUS_UP {
+			t.Error("Expected Node ", i, " status to be ", types.NODE_STATUS_UP, " Got: ", g.GetSelfStatus())
+		}
+	}
+
+	// Bring node 3,node 2 down
+	gossipers[3].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+	gossipers[2].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
+
+	for i := 0; i < 2; i++ {
+		if gossipers[i].GetSelfStatus() != types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
+			t.Error("Expected Node ", i, " status to be ", types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM, " Got: ", gossipers[i].GetSelfStatus())
+		}
+	}
+
+	//Remove the two nodes
+	delete(peers, types.NodeId("2"))
+	delete(peers, types.NodeId("3"))
+	gossipers[0].UpdateCluster(peers)
+	gossipers[1].UpdateCluster(peers)
+
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL)
+
+	for i := 0; i < 2; i++ {
+		if gossipers[i].GetSelfStatus() != types.NODE_STATUS_UP {
+			t.Error("Expected Node ", i, " status to be ", types.NODE_STATUS_UP, " Got: ", gossipers[i].GetSelfStatus())
+		}
+	}
+}
+
+func TestQuorumAddNodes(t *testing.T) {
+	printTestInfo()
+	node0Ip := "127.0.0.1:9923"
+	node0 := types.NodeId("0")
+	peers := make(map[types.NodeId]string)
+	peers[node0] = node0Ip
+	g0, _ := startNode(t, node0Ip, node0, []string{}, peers)
+
+	// Lets sleep so that the nodes gossip and update their quorum
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(1))
+
+	if g0.GetSelfStatus() != types.NODE_STATUS_UP {
+		t.Error("Expected Node 0 status to be ", types.NODE_STATUS_UP, " Got: ", g0.GetSelfStatus())
+	}
+
+	// Add a new node
+	node1 := types.NodeId("1")
+	node1Ip := "127.0.0.2:9924"
+	peers[node1] = node1Ip
+	g0.UpdateCluster(peers)
+
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL)
+	if g0.GetSelfStatus() != types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
+		t.Error("Expected Node 0 status to be ", types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM, " Got: ", g0.GetSelfStatus())
+	}
+
+	// Start the new node
+	startNode(t, node1Ip, node1, []string{node0Ip}, peers)
+
+	// Lets sleep so that the nodes gossip and update their quorum
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(3))
+
+	if g0.GetSelfStatus() != types.NODE_STATUS_UP {
+		t.Error("Expected Node 0 status to be ", types.NODE_STATUS_UP, " Got: ", g0.GetSelfStatus())
+	}
 }
