@@ -307,19 +307,14 @@ func (gd *GossipDelegate) handleStateEvents() {
 		previousStatus := gd.currentState.NodeStatus()
 		switch event {
 		case types.SELF_ALIVE:
-			//logrus.Infof("SELF ALIVE %v", gd.NodeId())
 			gd.currentState, _ = gd.currentState.SelfAlive(gd.GetLocalState())
 		case types.NODE_ALIVE:
-			//logrus.Infof("NODE_ALIVE %v", gd.NodeId())
 			gd.currentState, _ = gd.currentState.NodeAlive(gd.GetLocalState())
 		case types.SELF_LEAVE:
-			//logrus.Infof("SELF_LEAVE %v", gd.NodeId())
 			gd.currentState, _ = gd.currentState.SelfLeave()
 		case types.NODE_LEAVE:
-			//logrus.Infof("NODE LEAVE %v", gd.NodeId())
 			gd.currentState, _ = gd.currentState.NodeLeave(gd.GetLocalState())
 		case types.UPDATE_CLUSTER_SIZE:
-			//logrus.Infof("SIZE %v %v", gd.NodeId(), gd.currentState.String())
 			gd.currentState, _ = gd.currentState.UpdateClusterSize(gd.getClusterSize(), gd.GetLocalState())
 		case types.TIMEOUT:
 			logrus.Infof("Quorum Timeout. Waited for (%v)", gd.quorumTimeout)
