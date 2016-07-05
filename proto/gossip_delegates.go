@@ -29,6 +29,8 @@ type GossipDelegate struct {
 	currentState state.State
 	// quorum timeout to change the quorum status of a node
 	quorumTimeout time.Duration
+	timeoutVersion uint64
+	timeoutVersionLock sync.Mutex
 }
 
 func (gd *GossipDelegate) InitGossipDelegate(
@@ -294,10 +296,22 @@ func (gd *GossipDelegate) triggerStateEvent(event types.StateEvent) {
 	return
 }
 
-func startQuorumTimer(quorumTimeout time.Duration, stateEvent chan types.StateEvent) {
-	logrus.Infof("Starting Quorum Timer. Waiting for quorum timeout of (%v)", quorumTimeout)
-	time.Sleep(quorumTimeout)
-	stateEvent <- types.TIMEOUT
+func (gd *GossipDelegate) startQuorumTimer() {
+	gd.timeoutVersionLock.Lock()
+	localVersion := gd.timeoutVersion + 1
+	gd.timeoutVersion = localVersion
+	gd.timeoutVersionLock.Unlock()
+
+	logrus.Infof("Starting Quorum Timer with version v%v. Waiting for quorum timeout of (%v)", localVersion, quorumTimeout)
+	time.Sleep(gd.quorumTimeout)
+
+	gd.timeoutVersionLock.Lock()
+	if localVersion == gd.timeoutVersion {
+		gd.timeoutVersionLock.Unlock()
+		gd.stateEvent <- types.TIMEOUT
+		return
+	} // else do not send an event. Another timer started
+	gd.timeoutVersionLock.Unlock()
 }
 
 func (gd *GossipDelegate) handleStateEvents() {
@@ -326,7 +340,7 @@ func (gd *GossipDelegate) handleStateEvents() {
 		newStatus := gd.currentState.NodeStatus()
 		if previousStatus == types.NODE_STATUS_UP && newStatus == types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
 			// Start a timer
-			go startQuorumTimer(gd.quorumTimeout, gd.stateEvent)
+			go gd.startQuorumTimer()
 		}
 		gd.UpdateSelfStatus(gd.currentState.NodeStatus())
 	}
