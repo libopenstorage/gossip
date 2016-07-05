@@ -15,10 +15,10 @@ var instanceNotInQuorum *notInQuorum
 
 func GetNotInQuorum(clusterSize int, selfId types.NodeId, stateEvent chan types.StateEvent) State {
 	return &notInQuorum{
-		nodeStatus: types.NODE_STATUS_NOT_IN_QUORUM,
+		nodeStatus:  types.NODE_STATUS_NOT_IN_QUORUM,
 		clusterSize: clusterSize,
-		id: selfId,
-		stateEvent: stateEvent,
+		id:          selfId,
+		stateEvent:  stateEvent,
 	}
 }
 
@@ -57,6 +57,11 @@ func (niq *notInQuorum) SelfLeave() (State, error) {
 	return down, nil
 }
 
+func (niq *notInQuorum) ExternalSelfLeave() (State, error) {
+	down := GetDown(niq.clusterSize, niq.id, niq.stateEvent)
+	return down, nil
+}
+
 func (niq *notInQuorum) NodeLeave(localNodeInfoMap types.NodeInfoMap) (State, error) {
 	return niq, nil
 }
@@ -73,6 +78,6 @@ func (niq *notInQuorum) UpdateClusterSize(clusterSize int, localNodeInfoMap type
 	}
 }
 
-func (niq *notInQuorum) Timeout() (State, error) {
+func (niq *notInQuorum) Timeout(clusterSize int, localNodeInfoMap types.NodeInfoMap) (State, error) {
 	return niq, nil
 }

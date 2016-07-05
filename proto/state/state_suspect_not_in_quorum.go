@@ -15,10 +15,10 @@ var instanceSuspectNotInQuorum *suspectNotInQuorum
 
 func GetSuspectNotInQuorum(clusterSize int, selfId types.NodeId, stateEvent chan types.StateEvent) State {
 	return &suspectNotInQuorum{
-		nodeStatus: types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM,
+		nodeStatus:  types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM,
 		clusterSize: clusterSize,
-		id: selfId,
-		stateEvent: stateEvent,
+		id:          selfId,
+		stateEvent:  stateEvent,
 	}
 }
 
@@ -50,6 +50,11 @@ func (siq *suspectNotInQuorum) SelfLeave() (State, error) {
 	return down, nil
 }
 
+func (siq *suspectNotInQuorum) ExternalSelfLeave() (State, error) {
+	down := GetDown(siq.clusterSize, siq.id, siq.stateEvent)
+	return down, nil
+}
+
 func (siq *suspectNotInQuorum) NodeLeave(localNodeInfoMap types.NodeInfoMap) (State, error) {
 	return siq, nil
 }
@@ -66,7 +71,15 @@ func (siq *suspectNotInQuorum) UpdateClusterSize(clusterSize int, localNodeInfoM
 	}
 }
 
-func (siq *suspectNotInQuorum) Timeout() (State, error) {
-	notInQuorum := GetNotInQuorum(siq.clusterSize, siq.id, siq.stateEvent)
-	return notInQuorum, nil
+func (siq *suspectNotInQuorum) Timeout(clusterSize int, localNodeInfoMap types.NodeInfoMap) (State, error) {
+	siq.clusterSize = clusterSize
+	quorum := (siq.clusterSize / 2) + 1
+	upNodes := calculateUpNodes(localNodeInfoMap)
+	if upNodes < quorum {
+		notInQuorum := GetNotInQuorum(siq.clusterSize, siq.id, siq.stateEvent)
+		return notInQuorum, nil
+	} else {
+		up := GetUp(siq.clusterSize, siq.id, siq.stateEvent)
+		return up, nil
+	}
 }
