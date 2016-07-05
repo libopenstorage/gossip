@@ -302,7 +302,7 @@ func (gd *GossipDelegate) startQuorumTimer() {
 	gd.timeoutVersion = localVersion
 	gd.timeoutVersionLock.Unlock()
 
-	logrus.Infof("Starting Quorum Timer with version v%v. Waiting for quorum timeout of (%v)", localVersion, quorumTimeout)
+	logrus.Infof("Starting Quorum Timer with version v%v. Waiting for quorum timeout of (%v)", localVersion, gd.quorumTimeout)
 	time.Sleep(gd.quorumTimeout)
 
 	gd.timeoutVersionLock.Lock()

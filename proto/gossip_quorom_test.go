@@ -468,3 +468,85 @@ func TestQuorumAddNodes(t *testing.T) {
 		t.Error("Expected Node 0 status to be ", types.NODE_STATUS_UP, " Got: ", g0.GetSelfStatus())
 	}
 }
+
+func TestQuorumExternalLeave(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{
+		"127.0.0.1:9925",
+		"127.0.0.2:9926",
+		"127.0.0.3:9927",
+	}
+
+	peers := make(map[types.NodeId]string)
+	for i, ip := range nodes {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		peers[nodeId] = ip
+	}
+
+	var gossipers []*GossiperImpl
+	for i, ip := range nodes {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		var g *GossiperImpl
+		if i == 0 {
+			g, _ = startNode(t, ip, nodeId, []string{}, peers)
+		} else {
+			g, _ = startNode(t, ip, nodeId, []string{nodes[0]}, peers)
+		}
+
+		gossipers = append(gossipers, g)
+	}
+
+	// Lets sleep so that the nodes gossip and update their quorum
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
+
+	for i, g := range gossipers {
+		if g.GetSelfStatus() != types.NODE_STATUS_UP {
+			t.Error("Expected Node ", i, " status to be ", types.NODE_STATUS_UP, " Got: ", g.GetSelfStatus())
+		}
+	}
+
+	// 1. Call an ExternalLeave on a node which is in quorum
+
+	gossipers[0].Leave()
+	// Sleep for quorum timeout
+	time.Sleep(TestQuorumTimeout)
+
+	for i, g := range gossipers {
+		if g.GetSelfStatus() != types.NODE_STATUS_UP {
+			t.Error("Expected Node ", i, " status to be ", types.NODE_STATUS_UP, " Got: ", g.GetSelfStatus())
+		}
+	}
+
+	// 2. Call an ExternalLeave on a node which is suspect not in quorum
+
+	// Make node 0 to go in suspect not in quorum state
+	gossipers[0].Leave()
+	time.Sleep(2 * time.Second)
+	if gossipers[0].GetSelfStatus() != types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
+		t.Error("Expected Node 0 status to be ", types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM, " Got: ", gossipers[0].GetSelfStatus())
+	}
+
+	// Node 0 now in suspect not in quorum
+	gossipers[0].Leave()
+	time.Sleep(100 * time.Millisecond)
+	if gossipers[0].GetSelfStatus() != types.NODE_STATUS_DOWN {
+		t.Error("Expected Node 0 status to be ", types.NODE_STATUS_DOWN, " Got: ", gossipers[0].GetSelfStatus())
+	}
+
+	// 3. Call an ExternalLeave on a node which is not in quorum
+
+	// Isolate node 0
+	// Simulate isolation by stopping gossiper for node 0 and starting it back,
+	// but by not providing peer IPs and setting cluster size to 3.
+	gossipers[0].Stop(time.Duration(10) * time.Second)
+	gossipers[0].InitStore(types.NodeId("0"), "v1", types.NODE_STATUS_NOT_IN_QUORUM)
+	gossipers[0].Start([]string{})
+
+	// Node 0 now not in quorum. Call an ExternalLeave
+	gossipers[0].Leave()
+	time.Sleep(2 * time.Second)
+	if gossipers[0].GetSelfStatus() != types.NODE_STATUS_DOWN {
+		t.Error("Expected Node 0 status to be ", types.NODE_STATUS_DOWN, " Got: ", gossipers[0].GetSelfStatus())
+	}
+}
