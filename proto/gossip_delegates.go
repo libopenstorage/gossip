@@ -28,8 +28,8 @@ type GossipDelegate struct {
 	// current State object
 	currentState state.State
 	// quorum timeout to change the quorum status of a node
-	quorumTimeout time.Duration
-	timeoutVersion uint64
+	quorumTimeout      time.Duration
+	timeoutVersion     uint64
 	timeoutVersionLock sync.Mutex
 }
 
@@ -326,12 +326,14 @@ func (gd *GossipDelegate) handleStateEvents() {
 			gd.currentState, _ = gd.currentState.NodeAlive(gd.GetLocalState())
 		case types.SELF_LEAVE:
 			gd.currentState, _ = gd.currentState.SelfLeave()
+		case types.EXTERNAL_SELF_LEAVE:
+			gd.currentState, _ = gd.currentState.ExternalSelfLeave()
 		case types.NODE_LEAVE:
 			gd.currentState, _ = gd.currentState.NodeLeave(gd.GetLocalState())
 		case types.UPDATE_CLUSTER_SIZE:
 			gd.currentState, _ = gd.currentState.UpdateClusterSize(gd.getClusterSize(), gd.GetLocalState())
 		case types.TIMEOUT:
-			newState, _ := gd.currentState.Timeout()
+			newState, _ := gd.currentState.Timeout(gd.getClusterSize(), gd.GetLocalState())
 			if newState.NodeStatus() != gd.currentState.NodeStatus() {
 				logrus.Infof("Quorum Timeout. Waited for (%v)", gd.quorumTimeout)
 			}

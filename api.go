@@ -78,6 +78,9 @@ type Gossiper interface {
 	// UpdateCluster updates gossip with latest peer nodes Id-Ip mapping
 	UpdateCluster(map[types.NodeId]string)
 
+	// Leave is used to indicate gossip that it needs to stop gossiping if
+	// no quorum
+	Leave()
 }
 
 // New returns an initialized Gossip node

@@ -243,3 +243,8 @@ func (g *GossiperImpl) UpdateCluster(peers map[types.NodeId]string) {
 	g.updateCluster(peers)
 	g.triggerStateEvent(types.UPDATE_CLUSTER_SIZE)
 }
+
+func (g *GossiperImpl) Leave() {
+	log.Infof("External Leave called")
+	g.triggerStateEvent(types.EXTERNAL_SELF_LEAVE)
+}
