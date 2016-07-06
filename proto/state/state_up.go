@@ -41,10 +41,6 @@ func (u *up) SelfLeave() (State, error) {
 	return down, nil
 }
 
-func (u *up) ExternalSelfLeave() (State, error) {
-	return GetSuspectNotInQuorum(u.clusterSize, u.id, u.stateEvent), nil
-}
-
 func calculateUpNodes(localNodeInfoMap types.NodeInfoMap) int {
 	upNodes := 0
 	for _, nodeInfo := range localNodeInfoMap {

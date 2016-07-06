@@ -118,7 +118,6 @@ type GossiperImpl struct {
 	nodes     GossipNodeList
 	name      string
 	nodesLock sync.Mutex
-	// to signal exit gossip loop
 	gossipInterval time.Duration
 	//nodeDeathInterval time.Duration
 	shutDown bool
@@ -244,7 +243,14 @@ func (g *GossiperImpl) UpdateCluster(peers map[types.NodeId]string) {
 	g.triggerStateEvent(types.UPDATE_CLUSTER_SIZE)
 }
 
-func (g *GossiperImpl) Leave() {
-	log.Infof("External Leave called")
-	g.triggerStateEvent(types.EXTERNAL_SELF_LEAVE)
+func (g *GossiperImpl) ExternalNodeLeave(nodeId types.NodeId) types.NodeId {
+	if g.GetSelfStatus() == types.NODE_STATUS_UP {
+		log.Infof("Gossip-[ExternalNodeLeave] : Node %v should go down.", nodeId)
+		return nodeId
+	} else {
+		// We are the culprit as we are not in quorum
+		log.Infof("Gossip-[ExternalNodeLeave] : Requested Node to be killed : %v,"+
+			" Our Status: %v. We should go down.", nodeId, g.GetSelfStatus())
+		return g.NodeId()
+	}
 }

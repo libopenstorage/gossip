@@ -29,7 +29,6 @@ const (
 	NODE_LEAVE
 	UPDATE_CLUSTER_SIZE
 	TIMEOUT
-	EXTERNAL_SELF_LEAVE
 )
 
 type GossipDirection uint8

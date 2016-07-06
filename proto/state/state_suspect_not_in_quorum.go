@@ -50,11 +50,6 @@ func (siq *suspectNotInQuorum) SelfLeave() (State, error) {
 	return down, nil
 }
 
-func (siq *suspectNotInQuorum) ExternalSelfLeave() (State, error) {
-	down := GetDown(siq.clusterSize, siq.id, siq.stateEvent)
-	return down, nil
-}
-
 func (siq *suspectNotInQuorum) NodeLeave(localNodeInfoMap types.NodeInfoMap) (State, error) {
 	return siq, nil
 }

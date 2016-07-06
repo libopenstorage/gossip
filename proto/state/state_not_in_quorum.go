@@ -57,11 +57,6 @@ func (niq *notInQuorum) SelfLeave() (State, error) {
 	return down, nil
 }
 
-func (niq *notInQuorum) ExternalSelfLeave() (State, error) {
-	down := GetDown(niq.clusterSize, niq.id, niq.stateEvent)
-	return down, nil
-}
-
 func (niq *notInQuorum) NodeLeave(localNodeInfoMap types.NodeInfoMap) (State, error) {
 	return niq, nil
 }

@@ -308,12 +308,11 @@ func TestGossiperOneNodeNeverGossips(t *testing.T) {
 			if nid == 0 {
 				if n.Status != types.NODE_STATUS_DOWN {
 					t.Error("Gossiper ", i,
-						"Expected node status to be down: ", nodeId, " n:", n.Status)
+						"Expected node status for ", nodeId, " to be down. Got: ", n.Status)
 				}
 			} else {
 				if n.Status != types.NODE_STATUS_UP {
-					t.Error("Gossiper ", i, "Expected node to be up: ", nodeId,
-						" n:", n)
+					t.Error("Gossiper ", i, "Expected node", nodeId, " to be up. Got: ", n.Status)
 				}
 			}
 		}
@@ -570,6 +569,10 @@ func TestGossiperUpdateNodeIp(t *testing.T) {
 
 		}
 	}
+	for i := 0; i < len(nodes); i++ {
+		gossipers[i].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
+	}
+
 }
 
 func verifyGossiperEquality(g1 *GossiperImpl, g2 *GossiperImpl, t *testing.T) {
@@ -707,10 +710,6 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 			}
 		}
 	}
-	for i := 0; i < len(nodes); i++ {
-		gossipers[nodes[i]].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
-	}
-
 }
 
 func TestGossiperAddNodeExternally(t *testing.T) {
@@ -863,5 +862,87 @@ func TestGossiperRemoveNodeExternally(t *testing.T) {
 			}
 		}
 	}
+}
 
+func TestGossiperExternalNodeLeaveSelfKill(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{
+		"127.0.0.1:9164",
+		"127.0.0.2:9165",
+		"127.0.0.3:9166",
+	}
+
+	peers := make(map[types.NodeId]string)
+	for i, ip := range nodes {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		peers[nodeId] = ip
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	gossipers := make(map[int]*GossiperImpl)
+	var g *GossiperImpl
+	for i, nodeId := range nodes {
+		id := types.NodeId(strconv.Itoa(i))
+		if i == 1 {
+			// Isolate node 1
+			g, _ = NewGossiperImpl(nodeId, id, []string{}, types.DEFAULT_GOSSIP_VERSION)
+		} else {
+			g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
+		}
+		g.UpdateCluster(peers)
+		gossipers[i] = g
+	}
+
+	// Let the nodes gossip and populate their memberlists
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+
+	// Call ExternalNodeLeave on node1. It should kill itself.
+	killedNode := gossipers[1].ExternalNodeLeave(types.NodeId("0"))
+	if killedNode != types.NodeId("1") {
+		t.Error("ExternalNodeLeave should have killed Node 1 but killed Node ", killedNode)
+	}
+
+	for i := 0; i < len(nodes); i++ {
+		gossipers[i].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
+	}
+}
+
+func TestGossiperExternalNodeLeavePeerKill(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{
+		"127.0.0.1:9164",
+		"127.0.0.2:9165",
+		"127.0.0.3:9166",
+	}
+
+	peers := make(map[types.NodeId]string)
+	for i, ip := range nodes {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		peers[nodeId] = ip
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	gossipers := make(map[int]*GossiperImpl)
+	var g *GossiperImpl
+	for i, nodeId := range nodes {
+		id := types.NodeId(strconv.Itoa(i))
+		g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
+		g.UpdateCluster(peers)
+		gossipers[i] = g
+	}
+
+	// Let the nodes gossip and populate their memberlists
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+
+	// Call ExternalNodeLeave on node1. It should kill the peer node.
+	killedNode := gossipers[1].ExternalNodeLeave(types.NodeId("0"))
+	if killedNode != types.NodeId("0") {
+		t.Error("ExternalNodeLeave should have killed Node 1 but killed Node ", killedNode)
+	}
+
+	for i := 0; i < len(nodes); i++ {
+		gossipers[i].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
+	}
 }

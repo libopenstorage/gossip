@@ -183,6 +183,7 @@ func (gd *GossipDelegate) MergeRemoteState(buf []byte, join bool) {
 		gs.Err = fmt.Sprintf("Error in unmarshalling peer's local data. Error : %v", err.Error())
 		logrus.Infof(gs.Err)
 	}
+
 	gd.Update(remoteState)
 	gs.Op = types.MergeRemote
 	gs.Err = ""
@@ -224,7 +225,6 @@ func (gd *GossipDelegate) NotifyJoin(node *memberlist.Node) {
 func (gd *GossipDelegate) NotifyLeave(node *memberlist.Node) {
 	if node.Name == gd.nodeId {
 		gd.triggerStateEvent(types.SELF_LEAVE)
-		//gd.UpdateSelfStatus(types.NODE_STATUS_DOWN)
 	} else {
 		err := gd.UpdateNodeStatus(types.NodeId(node.Name), types.NODE_STATUS_DOWN)
 		if err != nil {
@@ -254,7 +254,6 @@ func (gd *GossipDelegate) NotifyUpdate(node *memberlist.Node) {
 // AliveDelegate is used to involve a client in processing a node "alive" message.
 // TODO/Future-use : Check if we want to add this node in memberlist
 func (gd *GossipDelegate) NotifyAlive(node *memberlist.Node) error {
-	// Ignore self NotifyAlive
 	if node.Name == gd.nodeId {
 		gd.triggerStateEvent(types.SELF_ALIVE)
 		return nil
@@ -326,8 +325,6 @@ func (gd *GossipDelegate) handleStateEvents() {
 			gd.currentState, _ = gd.currentState.NodeAlive(gd.GetLocalState())
 		case types.SELF_LEAVE:
 			gd.currentState, _ = gd.currentState.SelfLeave()
-		case types.EXTERNAL_SELF_LEAVE:
-			gd.currentState, _ = gd.currentState.ExternalSelfLeave()
 		case types.NODE_LEAVE:
 			gd.currentState, _ = gd.currentState.NodeLeave(gd.GetLocalState())
 		case types.UPDATE_CLUSTER_SIZE:

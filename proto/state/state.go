@@ -22,10 +22,6 @@ type State interface {
 	// SelfLeave is an event when memberlist indicates self node leaves
 	SelfLeave() (State, error)
 
-	// ExternalSelfLeave is an event when someone external to gossip wants to
-	// indicate that this node should go down.
-	ExternalSelfLeave() (State, error)
-
 	// NodeLeave is an event when memberlist indicates another node has left
 	NodeLeave(nodeInfoMap types.NodeInfoMap) (State, error)
 
