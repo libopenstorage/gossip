@@ -29,8 +29,7 @@ func (d *down) NodeStatus() types.NodeStatus {
 }
 
 func (d *down) SelfAlive(localNodeInfoMap types.NodeInfoMap) (State, error) {
-	notInQuorum := GetNotInQuorum(d.clusterSize, d.id, d.stateEvent)
-	return notInQuorum, nil
+	return d, nil
 }
 
 func (d *down) NodeAlive(localNodeInfo types.NodeInfoMap) (State, error) {
@@ -38,10 +37,6 @@ func (d *down) NodeAlive(localNodeInfo types.NodeInfoMap) (State, error) {
 }
 
 func (d *down) SelfLeave() (State, error) {
-	return d, nil
-}
-
-func (d *down) ExternalSelfLeave() (State, error) {
 	return d, nil
 }
 
