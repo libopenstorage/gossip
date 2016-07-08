@@ -88,12 +88,12 @@ func (gd *GossipDelegate) gossipVersionCheck(node *memberlist.Node) error {
 	nodeMeta := node.Meta
 	err := gd.convertFromBytes(nodeMeta, &nodeMetaInfo)
 	if err != nil {
-		err = fmt.Errorf("Error in unmarshalling peer's meta data. Error : %v", err.Error())
+		err = fmt.Errorf("gossip: Error in unmarshalling peer's meta data. Error : %v", err.Error())
 	} else {
 		if nodeMetaInfo.GossipVersion != gd.GetGossipVersion() {
 			// Version Mismatch
 			// We do not add this node in our memberlist
-			err = fmt.Errorf("Gossip Version mismatch with Node (%v):(%v)", node.Name, node.Addr)
+			err = fmt.Errorf("gossip: Gossip Version mismatch with Node (%v):(%v)", node.Name, node.Addr)
 		} else {
 			// Version Match
 			// Add this new node in our node map
@@ -155,7 +155,7 @@ func (gd *GossipDelegate) LocalState(join bool) []byte {
 	localState := gd.GetLocalState()
 	byteLocalState, err := gd.convertToBytes(&localState)
 	if err != nil {
-		gs.Err = fmt.Sprintf("Error in LocalState. Unable to unmarshal: %v", err.Error())
+		gs.Err = fmt.Sprintf("gossip: Error in LocalState. Unable to unmarshal: %v", err.Error())
 		logrus.Infof(gs.Err)
 		byteLocalState = []byte{}
 	}
@@ -180,7 +180,7 @@ func (gd *GossipDelegate) MergeRemoteState(buf []byte, join bool) {
 	gs := NewGossipSessionInfo("", types.GD_PEER_TO_ME)
 	err := gd.convertFromBytes(buf, &remoteState)
 	if err != nil {
-		gs.Err = fmt.Sprintf("Error in unmarshalling peer's local data. Error : %v", err.Error())
+		gs.Err = fmt.Sprintf("gossip: Error in unmarshalling peer's local data. Error : %v", err.Error())
 		logrus.Infof(gs.Err)
 	}
 
@@ -228,7 +228,7 @@ func (gd *GossipDelegate) NotifyLeave(node *memberlist.Node) {
 	} else {
 		err := gd.UpdateNodeStatus(types.NodeId(node.Name), types.NODE_STATUS_DOWN)
 		if err != nil {
-			logrus.Infof("Could not update status on NotifyLeave : %v", err.Error())
+			logrus.Infof("gossip: Could not update status on NotifyLeave : %v", err.Error())
 			return
 		}
 		gd.triggerStateEvent(types.NODE_LEAVE)
@@ -248,7 +248,7 @@ func (gd *GossipDelegate) NotifyLeave(node *memberlist.Node) {
 // Note: Currently we do not use memberlists Node meta or modify it.
 // Probably future use ?
 func (gd *GossipDelegate) NotifyUpdate(node *memberlist.Node) {
-	logrus.Infof("NotifyUpdate %v %v", node.Name, node.Addr)
+	logrus.Infof("gossip: Update Notification from %v %v", node.Name, node.Addr)
 }
 
 // AliveDelegate is used to involve a client in processing a node "alive" message.
@@ -301,7 +301,7 @@ func (gd *GossipDelegate) startQuorumTimer() {
 	gd.timeoutVersion = localVersion
 	gd.timeoutVersionLock.Unlock()
 
-	logrus.Infof("Starting Quorum Timer with version v%v. Waiting for quorum timeout of (%v)", localVersion, gd.quorumTimeout)
+	logrus.Infof("gossip: Starting Quorum Timer with version v%v. Waiting for quorum timeout of (%v)", localVersion, gd.quorumTimeout)
 	time.Sleep(gd.quorumTimeout)
 
 	gd.timeoutVersionLock.Lock()
@@ -332,7 +332,7 @@ func (gd *GossipDelegate) handleStateEvents() {
 		case types.TIMEOUT:
 			newState, _ := gd.currentState.Timeout(gd.getClusterSize(), gd.GetLocalState())
 			if newState.NodeStatus() != gd.currentState.NodeStatus() {
-				logrus.Infof("Quorum Timeout. Waited for (%v)", gd.quorumTimeout)
+				logrus.Infof("gossip: Quorum Timeout. Waited for (%v)", gd.quorumTimeout)
 			}
 			gd.currentState = newState
 		}

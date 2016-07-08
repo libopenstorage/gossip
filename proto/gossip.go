@@ -59,7 +59,7 @@ func (s *GossipHistory) GetAllRecords() []*types.GossipSessionInfo {
 	for element := s.nodes.Front(); element != nil; element = element.Next() {
 		r, ok := element.Value.(*types.GossipSessionInfo)
 		if !ok || r == nil {
-			log.Error("Failed to convert element")
+			log.Error("gossip: Failed to convert element")
 			continue
 		}
 		records[i] = &types.GossipSessionInfo{Node: r.Node,
@@ -187,7 +187,7 @@ func (g *GossiperImpl) Start(knownIps []string) error {
 	g.InitCurrentState(len(knownIps) + 1)
 	list, err := ml.Create(g.mlConf)
 	if err != nil {
-		log.Warnf("Unable to create memberlist: " + err.Error())
+		log.Warnf("gossip: Unable to create memberlist: " + err.Error())
 		return err
 	}
 	// Set the memberlist in gossiper object
@@ -197,7 +197,7 @@ func (g *GossiperImpl) Start(knownIps []string) error {
 		// Joining an existing cluster
 		_, err := list.Join(knownIps)
 		if err != nil {
-			log.Infof("Unable to join other nodes at startup : %v", err)
+			log.Infof("gossip: Unable to join other nodes at startup : %v", err)
 			return err
 		}
 	}
@@ -206,7 +206,7 @@ func (g *GossiperImpl) Start(knownIps []string) error {
 
 func (g *GossiperImpl) Stop(leaveTimeout time.Duration) error {
 	if g.shutDown == true {
-		return fmt.Errorf("Gossiper already stopped")
+		return fmt.Errorf("gossip: Gossiper already stopped")
 	}
 	err := g.mlist.Leave(leaveTimeout)
 	if err != nil {
@@ -244,13 +244,13 @@ func (g *GossiperImpl) UpdateCluster(peers map[types.NodeId]string) {
 }
 
 func (g *GossiperImpl) ExternalNodeLeave(nodeId types.NodeId) types.NodeId {
+	log.Infof("gossip: Request for a Node Leave operation on Node %v", nodeId)
 	if g.GetSelfStatus() == types.NODE_STATUS_UP {
-		log.Infof("Gossip-[ExternalNodeLeave] : Node %v should go down.", nodeId)
+		log.Infof("gossip: Node %v should go down.", nodeId)
 		return nodeId
 	} else {
 		// We are the culprit as we are not in quorum
-		log.Infof("Gossip-[ExternalNodeLeave] : Requested Node to be killed : %v,"+
-			" Our Status: %v. We should go down.", nodeId, g.GetSelfStatus())
+		log.Infof("gossip: Our Status: %v. We should go down.", g.GetSelfStatus())
 		return g.NodeId()
 	}
 }
