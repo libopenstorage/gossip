@@ -15,7 +15,7 @@ const (
 
 // New returns an initialized Gossip node
 // which identifies itself with the given ip
-func NewGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string, version string) (*GossiperImpl, error) {
+func newGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string, version, clusterId string) (*GossiperImpl, error) {
 	g := new(GossiperImpl)
 	gi := types.GossipIntervals{
 		GossipInterval:   types.DEFAULT_GOSSIP_INTERVAL,
@@ -24,10 +24,18 @@ func NewGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string, vers
 		ProbeTimeout:     types.DEFAULT_PROBE_TIMEOUT,
 		QuorumTimeout:    TestQuorumTimeout,
 	}
-	g.Init(ip, selfNodeId, 1, gi, version)
+	g.Init(ip, selfNodeId, 1, gi, version, clusterId)
 	g.selfCorrect = false
 	err := g.Start(knownIps)
 	return g, err
+}
+
+func NewGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string, version string) (*GossiperImpl, error) {
+	return newGossiperImpl(ip, selfNodeId, knownIps, version, DEFAULT_CLUSTER_ID)
+}
+
+func NewGossiperImplWithClusterId(ip string, selfNodeId types.NodeId, knownIps []string, version, clusterId string) (*GossiperImpl, error) {
+	return newGossiperImpl(ip, selfNodeId, knownIps, version, clusterId)
 }
 
 func TestGossiperHistory(t *testing.T) {
@@ -912,9 +920,9 @@ func TestGossiperExternalNodeLeavePeerKill(t *testing.T) {
 	printTestInfo()
 
 	nodes := []string{
-		"127.0.0.1:9164",
-		"127.0.0.2:9165",
-		"127.0.0.3:9166",
+		"127.0.0.1:9167",
+		"127.0.0.2:9168",
+		"127.0.0.3:9169",
 	}
 
 	peers := make(map[types.NodeId]string)
@@ -945,4 +953,71 @@ func TestGossiperExternalNodeLeavePeerKill(t *testing.T) {
 	for i := 0; i < len(nodes); i++ {
 		gossipers[i].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
 	}
+}
+
+func TestGossiperNodesWithDifferentClusterId(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{
+		"127.0.0.1:9170",
+		"127.0.0.2:9171",
+		"127.0.0.3:9172",
+		"127.0.0.4:9173",
+		"127.0.0.5:9174",
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	gossipers := make(map[int]*GossiperImpl)
+
+	// Start gossipers for all nodes
+	for i, nodeId := range nodes {
+		id := types.NodeId(strconv.Itoa(i))
+		var g *GossiperImpl
+		if i == 2 || i == 4 {
+			// Set a different clusterId
+			g, _ = NewGossiperImplWithClusterId(nodeId, id, nodes, types.DEFAULT_GOSSIP_VERSION, "test-cluster-1")
+		} else {
+			g, _ = NewGossiperImplWithClusterId(nodeId, id, nodes, types.DEFAULT_GOSSIP_VERSION, "test-cluster-2")
+		}
+
+		gossipers[i] = g
+	}
+
+	key := types.StoreKey("somekey")
+	value := "someValue"
+	for i, g := range gossipers {
+		g.UpdateSelf(key, value+strconv.Itoa(i))
+	}
+
+	// Let the nodes gossip and populate their memberlists
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+
+	for i, g := range gossipers {
+		res := g.GetStoreKeyValue(key)
+		if i == 2 || i == 4 {
+			// These nodes should not have gossiped
+			if len(res) != 2 {
+				t.Error("Gossip ClusterId mismatch not entertained. Node ", i, " still has ", len(res), "peers")
+			}
+			continue
+		}
+		for nodeId, n := range res {
+			if nodeId != n.Id {
+				t.Error("Gossiper ", i, "Id does not match ",
+					nodeId, " n:", n.Id)
+			}
+			nid, ok := strconv.Atoi(string(nodeId))
+			if ok != nil {
+				t.Error("Failed to convert node to id ", nodeId, " n.Id", n.Id)
+			}
+			if nid == 2 || nid == 4 {
+				t.Error("Gossip ClusterId mismatch not entertained. Node ", i, "still has an update for faulty node ", nid)
+			}
+		}
+	}
+	time.Sleep(30 * time.Second)
+	for _, g := range gossipers {
+		g.Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
+	}
+
 }

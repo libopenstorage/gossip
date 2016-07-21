@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const DEFAULT_CLUSTER_ID = "test-cluster"
+
 func addKey(g *GossiperImpl) types.StoreKey {
 	key := types.StoreKey("new_key")
 	value := "new_value"
@@ -189,7 +191,7 @@ func TestQuorumOneNodeIsolated(t *testing.T) {
 	// Simulate isolation by stopping gossiper for node 1 and starting it back,
 	// but by not providing peer IPs and setting cluster size to 3.
 	gossipers[1].Stop(time.Duration(10) * time.Second)
-	gossipers[1].InitStore(types.NodeId("1"), "v1", types.NODE_STATUS_NOT_IN_QUORUM)
+	gossipers[1].InitStore(types.NodeId("1"), "v1", types.NODE_STATUS_NOT_IN_QUORUM, DEFAULT_CLUSTER_ID)
 	gossipers[1].Start([]string{})
 
 	// Lets sleep so that the nodes gossip and update their quorum
