@@ -1021,3 +1021,111 @@ func TestGossiperNodesWithDifferentClusterId(t *testing.T) {
 	}
 
 }
+
+func TestGossiperNodesWithDifferentStoreMaps(t *testing.T) {
+	printTestInfo()
+
+	nodes := []string{
+		"127.0.0.1:9175",
+		"127.0.0.2:9176",
+		"127.0.0.3:9177",
+		"127.0.0.4:9178",
+		"127.0.0.5:9179",
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	gossipers := make(map[int]*GossiperImpl)
+
+	// Start gossipers for all nodes
+	// Node 0, 1, 3 := Use old store map format
+	// Node 2, 4 := Use new store map format
+	for i, nodeId := range nodes {
+		id := types.NodeId(strconv.Itoa(i))
+		var g *GossiperImpl
+		if i == 2 || i == 4 {
+			// Set a different clusterId
+			g, _ = NewGossiperImpl(nodeId, id, nodes, types.GOSSIP_TEST_VERSION)
+		} else {
+			g, _ = NewGossiperImpl(nodeId, id, nodes, types.DEFAULT_GOSSIP_VERSION)
+		}
+		gossipers[i] = g
+	}
+
+	// key1 - Identified by both types of nodes
+	// key2 - Identified only by new nodes
+	type Key1 struct {
+		Id    string
+		Value int
+	}
+	type Key2 struct {
+		Id    int
+		Value string
+	}
+	for i, g := range gossipers {
+		if i == 2 || i == 4 {
+			k2 := Key2{
+				Id:    i,
+				Value: strconv.Itoa(i),
+			}
+			g.UpdateSelf(types.StoreKey("key2"), k2)
+		}
+		k1 := Key1{
+			Id:    strconv.Itoa(i),
+			Value: i,
+		}
+		g.UpdateSelf(types.StoreKey("key1"), k1)
+	}
+
+	// Let the nodes gossip and populate their memberlists
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+
+	for i, g := range gossipers {
+
+		res := g.GetStoreKeyValue(types.StoreKey("key1"))
+		if len(res) != len(nodes) {
+			t.Error("For node ", i, " did not receive gossip update from all nodes.")
+			continue
+		}
+		for id, nodeValue := range res {
+			if id == g.NodeId() {
+				continue
+			}
+			val := nodeValue.Value.(Key1)
+
+			if types.NodeId(val.Id) != id {
+				t.Error("For node ", i, " incorrect key1 value for node ", id)
+			}
+			idInt, _ := strconv.Atoi(string(id))
+			if idInt != val.Value {
+				t.Error("For node ", i, " incorrect key1 value for node ", id)
+			}
+		}
+
+		res2 := g.GetStoreKeyValue(types.StoreKey("key2"))
+		if i == 2 || i == 4 {
+			for id, nodeValue := range res2 {
+				if id == g.NodeId() {
+					continue
+				}
+				val := nodeValue.Value.(Key2)
+				if types.NodeId(val.Value) != id {
+					t.Error("For node ", i, " incorrect key2 value for node ", id)
+				}
+				idInt, _ := strconv.Atoi(string(id))
+				if idInt != val.Id {
+					t.Error("For node ", i, " incorrect key1 value for node ", id)
+				}
+
+			}
+		} else {
+			if len(res2) != 0 {
+				t.Error("For node ", i, " did not expect key2 in its store map")
+			}
+		}
+
+	}
+	//time.Sleep(30 * time.Second)
+	//for _, g := range gossipers {
+	//	g.Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
+	//}
+}

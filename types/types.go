@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+// Type Definitions
+
 type NodeId string
 type StoreKey string
 type NodeStatus uint8
@@ -12,6 +14,23 @@ type StateEvent uint8
 type NodeInfoMap map[NodeId]NodeInfo
 type NodeValueMap map[NodeId]NodeValue
 type StoreMap map[StoreKey]interface{}
+type GossipHeader [GOSSIP_HEADER_LENGTH]byte
+type GossipDataMap map[NodeId]GossipData
+type TypeMap map[StoreKey]interface{}
+
+// Constant Definitions
+
+const (
+	DEFAULT_GOSSIP_INTERVAL    time.Duration = 2 * time.Second
+	DEFAULT_PUSH_PULL_INTERVAL time.Duration = 2 * time.Second
+	DEFAULT_PROBE_INTERVAL     time.Duration = 5 * time.Second
+	DEFAULT_PROBE_TIMEOUT      time.Duration = 200 * time.Millisecond
+	DEFAULT_QUORUM_TIMEOUT     time.Duration = 1 * time.Minute
+	DEFAULT_GOSSIP_VERSION     string        = "v1"
+	// Version used for backward compatibility testing
+	GOSSIP_TEST_VERSION        string        = "test"
+	GOSSIP_HEADER_LENGTH       uint8         = 8
+)
 
 const (
 	NODE_STATUS_INVALID NodeStatus = iota
@@ -31,6 +50,20 @@ const (
 	TIMEOUT
 )
 
+type GossipHeaderPosition uint8
+
+const (
+	GH_VERSION_POS GossipHeaderPosition = 0
+	GH_MAX_POS     GossipHeaderPosition = 7
+)
+
+type GossipHeaderVersion uint8
+
+const (
+	GH_VERSION_BASE GossipHeaderVersion = 1 << iota
+	GH_VERSION_1
+)
+
 type GossipDirection uint8
 
 const (
@@ -48,6 +81,8 @@ const (
 	NotifyJoin  GossipOp = "Notify Join"
 	NotifyLeave GossipOp = "Notify Leave"
 )
+
+// Struct definitions
 
 type GossipSessionInfo struct {
 	Node string
@@ -74,6 +109,16 @@ type NodeInfo struct {
 	Value              StoreMap
 }
 
+// New structure format to pass over wire
+type GossipData struct {
+	Id                 NodeId
+	GenNumber          uint64
+	LastUpdateTs       time.Time
+	WaitForGenUpdateTs time.Time
+	Status             NodeStatus
+	Value              map[string][]byte
+}
+
 type NodeValue struct {
 	Id           NodeId
 	GenNumber    uint64
@@ -87,14 +132,7 @@ func (n NodeInfo) String() string {
 		n.Id, n.LastUpdateTs, n.Status, n.Value)
 }
 
-const (
-	DEFAULT_GOSSIP_INTERVAL    time.Duration = 2 * time.Second
-	DEFAULT_PUSH_PULL_INTERVAL time.Duration = 2 * time.Second
-	DEFAULT_PROBE_INTERVAL     time.Duration = 5 * time.Second
-	DEFAULT_PROBE_TIMEOUT      time.Duration = 200 * time.Millisecond
-	DEFAULT_QUORUM_TIMEOUT     time.Duration = 1 * time.Minute
-	DEFAULT_GOSSIP_VERSION     string        = "v1"
-)
+// Interface definitions
 
 type GossipIntervals struct {
 	// GossipInterval is the time interval within which the nodes gossip

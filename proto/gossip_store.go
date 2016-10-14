@@ -1,11 +1,12 @@
 package proto
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
+	"github.com/libopenstorage/gossip/types"
 	"sync"
 	"time"
-
-	"github.com/libopenstorage/gossip/types"
 )
 
 const (
@@ -28,6 +29,9 @@ type GossipStoreImpl struct {
 	clusterSize int
 	// Ts at which we lost quorum
 	lostQuorumTs time.Time
+	// Map of registered keys and their repective types
+	// We only decode those keys which are registered with us.
+	typeMap types.TypeMap
 }
 
 func NewGossipStore(id types.NodeId, version, clusterId string) *GossipStoreImpl {
@@ -59,6 +63,7 @@ func (s *GossipStoreImpl) InitStore(
 	clusterId string,
 ) {
 	s.nodeMap = make(types.NodeInfoMap)
+	s.typeMap = make(types.TypeMap)
 	s.id = id
 	s.selfCorrect = true
 	s.GossipVersion = version
@@ -86,6 +91,7 @@ func (s *GossipStoreImpl) UpdateSelf(key types.StoreKey, val interface{}) {
 	s.Lock()
 	defer s.Unlock()
 
+	s.RegisterKey(key, val)
 	nodeInfo, _ := s.nodeMap[s.id]
 	nodeInfo.Value[key] = val
 	nodeInfo.LastUpdateTs = time.Now()
@@ -223,7 +229,7 @@ func (s *GossipStoreImpl) MetaInfo() types.NodeMetaInfo {
 		LastUpdateTs:  selfNodeInfo.LastUpdateTs,
 		GenNumber:     selfNodeInfo.GenNumber,
 		GossipVersion: s.GossipVersion,
-		ClusterId: s.ClusterId,
+		ClusterId:     s.ClusterId,
 	}
 	return nodeMetaInfo
 }
@@ -234,6 +240,28 @@ func (s *GossipStoreImpl) GetLocalState() types.NodeInfoMap {
 	localCopy := make(types.NodeInfoMap)
 	for key, value := range s.nodeMap {
 		localCopy[key] = value
+	}
+	return localCopy
+}
+
+func (s *GossipStoreImpl) GetGossipData() types.GossipDataMap {
+	s.Lock()
+	defer s.Unlock()
+	localCopy := make(types.GossipDataMap)
+	for id, nodeInfo := range s.nodeMap {
+		gossipData := types.GossipData{
+			Id:                 nodeInfo.Id,
+			GenNumber:          nodeInfo.GenNumber,
+			LastUpdateTs:       nodeInfo.LastUpdateTs,
+			WaitForGenUpdateTs: nodeInfo.WaitForGenUpdateTs,
+			Status:             nodeInfo.Status,
+		}
+		gossipData.Value = make(map[string][]byte)
+		for key, val := range nodeInfo.Value {
+			bt, _ := s.convertToBytes(&val)
+			gossipData.Value[string(key)] = bt
+		}
+		localCopy[id] = gossipData
 	}
 	return localCopy
 }
@@ -272,6 +300,60 @@ func (s *GossipStoreImpl) Update(diff types.NodeInfoMap) {
 			s.nodeMap[id] = newNodeInfo
 		}
 	}
+}
+
+func (s *GossipStoreImpl) UpdateGossipData(diff types.GossipDataMap) {
+	s.Lock()
+	defer s.Unlock()
+
+	for id, nodeGossipData := range diff {
+		if id == s.id {
+			continue
+		}
+		selfValue, ok := s.nodeMap[id]
+		if !ok {
+			// We got an update for a node which we do not have in our map
+			// Lets add it with an offline state
+			selfValue.Status = types.NODE_STATUS_DOWN
+		}
+		if !ok || !statusValid(selfValue.Status) ||
+			selfValue.LastUpdateTs.Before(nodeGossipData.LastUpdateTs) {
+			// Our view of Status of a Node, should only be determined by memberlist.
+			// We should not update the Status field in our nodeInfo based on what other node's
+			// value is.
+			nodeGossipData.Status = selfValue.Status
+			nodeInfo := types.NodeInfo{
+				Id:                 nodeGossipData.Id,
+				GenNumber:          nodeGossipData.GenNumber,
+				LastUpdateTs:       nodeGossipData.LastUpdateTs,
+				WaitForGenUpdateTs: nodeGossipData.WaitForGenUpdateTs,
+				Status:             nodeGossipData.Status,
+			}
+			storeMap := make(types.StoreMap)
+			for key, value := range nodeGossipData.Value {
+				typeVal, ok := s.typeMap[types.StoreKey(key)]
+				if !ok {
+					// Unknown store key ignoring..
+					continue
+				}
+				intf := typeVal
+				s.convertFromBytes(value, &intf)
+				storeMap[types.StoreKey(key)] = intf
+			}
+			nodeInfo.Value = storeMap
+			s.nodeMap[id] = nodeInfo
+		}
+	}
+}
+
+func (s *GossipStoreImpl) RegisterKey(key types.StoreKey, value interface{}) error {
+	if _, ok := s.typeMap[key]; ok {
+		// Key already exists
+		return fmt.Errorf("Key already exists")
+	}
+	gob.Register(value)
+	s.typeMap[key] = value
+	return nil
 }
 
 func (s *GossipStoreImpl) updateCluster(peers map[types.NodeId]string) {
@@ -319,4 +401,24 @@ func (s *GossipStoreImpl) updateCluster(peers map[types.NodeId]string) {
 
 func (s *GossipStoreImpl) getClusterSize() int {
 	return s.clusterSize
+}
+
+func (s *GossipStoreImpl) convertToBytes(obj interface{}) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(obj)
+	if err != nil {
+		return []byte{}, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (s *GossipStoreImpl) convertFromBytes(buf []byte, msg interface{}) error {
+	msgBuffer := bytes.NewBuffer(buf)
+	dec := gob.NewDecoder(msgBuffer)
+	err := dec.Decode(msg)
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -1,6 +1,8 @@
 package proto
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"github.com/libopenstorage/gossip/types"
 	"math/rand"
@@ -188,6 +190,29 @@ func compareNodeInfo(n1 types.NodeInfo, n2 types.NodeInfo) bool {
 	return eq
 }
 
+func compareGossipData(n1 types.NodeInfo, n2 types.NodeInfo) bool {
+	eq := n1.Id == n2.Id && n2.LastUpdateTs == n1.LastUpdateTs // &&
+	//n1.Status == n2.Status
+	eq = eq && (n1.Value == nil && n2.Value == nil ||
+		n1.Value != nil && n2.Value != nil)
+	if eq && n1.Value != nil {
+		for key, value := range n1.Value {
+			value2, ok := n2.Value[key]
+			if value2 == nil {
+				continue
+			}
+			fmt.Printf("%v %v \n", value, value2.(string))
+			if !ok {
+				eq = false
+			}
+			if value != value2.(**string) {
+				eq = false
+			}
+		}
+	}
+	return eq
+}
+
 func dumpNodeInfo(nodeInfoMap types.NodeInfoMap, s string, t *testing.T) {
 	t.Log("\nDUMPING : ", s, " : LEN: ", len(nodeInfoMap))
 	for _, nodeInfo := range nodeInfoMap {
@@ -218,7 +243,7 @@ func verifyNodeInfoMapEquality(store types.NodeInfoMap, diff types.NodeInfoMap,
 	}
 }
 
-func TestGossipStoreUpdateData(t *testing.T) {
+func TestGossipStoreUpdate(t *testing.T) {
 	printTestInfo()
 
 	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID)
@@ -303,6 +328,180 @@ func TestGossipStoreUpdateData(t *testing.T) {
 	}
 }
 
+func convertGossipDataToNodeInfo(gossipData types.GossipData) types.NodeInfo {
+	value := make(map[types.StoreKey]interface{})
+	for k, v := range gossipData.Value {
+		// Assumes that in test we only use strings as values
+		//var ko KeyObj
+		var ko string
+		intf := interface{}(ko)
+		buf := bytes.NewBuffer(v)
+		dec := gob.NewDecoder(buf)
+		dec.Decode(&intf)
+		value[types.StoreKey(k)] = intf
+	}
+	return types.NodeInfo{
+		Id:           gossipData.Id,
+		Status:       gossipData.Status,
+		LastUpdateTs: gossipData.LastUpdateTs,
+		Value:        value,
+	}
+}
+
+func fillUpGossipDataMap(data types.GossipDataMap, keyList []string, nodeLen int) {
+	for i := 0; i < nodeLen; i++ {
+		gd := types.GossipData{
+			Id:           types.NodeId(strconv.Itoa(i)),
+			Status:       types.NODE_STATUS_UP,
+			LastUpdateTs: time.Now(),
+		}
+		storeMap := make(map[string][]byte)
+		gd.Value = storeMap
+		for i, key := range keyList {
+			ko := key + strconv.Itoa(i)
+			intf := interface{}(ko)
+			var buf bytes.Buffer
+			enc := gob.NewEncoder(&buf)
+			enc.Encode(&intf)
+			gd.Value[key] = buf.Bytes()
+		}
+		data[gd.Id] = gd
+	}
+}
+
+func TestGossipStoreUpdateGossipData(t *testing.T) {
+	printTestInfo()
+
+	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID)
+	time.Sleep(1 * time.Second)
+	// empty store and empty diff
+	diff := types.GossipDataMap{}
+	g.UpdateGossipData(diff)
+	if len(g.nodeMap) != 1 {
+		t.Error("Updating empty store with empty diff gave non-empty store: ",
+			g.nodeMap)
+	}
+
+	// empty store and non-emtpy diff
+	gossipDataDiff := make(types.GossipDataMap)
+	nodeLen := 5
+	keyList := []string{"key1", "key2", "key3", "key4", "key5"}
+	for i := 0; i < nodeLen; i++ {
+		k := keyList[i]
+		g.RegisterKey(types.StoreKey(keyList[i]), k)
+	}
+	fillUpGossipDataMap(gossipDataDiff, keyList, nodeLen)
+
+	g.UpdateGossipData(gossipDataDiff)
+	// Update does not modify the statuses in the node info map.
+	// Its always memberlist who deals with statuses
+	// Fake that behavior
+	for id, _ := range diff {
+		nodeInfo, _ := g.nodeMap[id]
+		nodeInfo.Status = types.NODE_STATUS_UP
+		g.nodeMap[id] = nodeInfo
+	}
+
+	diffNodeInfoMap := make(types.NodeInfoMap)
+	for id, gossipData := range gossipDataDiff {
+		diffNodeInfo := convertGossipDataToNodeInfo(gossipData)
+		diffNodeInfoMap[id] = diffNodeInfo
+	}
+	verifyNodeInfoMapEquality(types.NodeInfoMap(g.nodeMap), diffNodeInfoMap, t)
+
+	for nodeId, nodeInfo := range g.nodeMap {
+		// id % 4 == 0 : node id is not existing
+		// id % 4 == 1 : store has old timestamp
+		// id % 4 == 2 : node id is invalid
+		// id % 4 == 3 : store has newer data
+		id, _ := strconv.Atoi(string(nodeId))
+		switch {
+		case id%4 == 0:
+			delete(g.nodeMap, nodeId)
+		case id%4 == 1:
+			olderTime := nodeInfo.LastUpdateTs.UnixNano() - 1000
+			nodeInfo.LastUpdateTs = time.Unix(0, olderTime)
+		case id%4 == 2:
+			if id > 10 {
+				nodeInfo.Status = types.NODE_STATUS_INVALID
+			} else {
+				nodeInfo.Status = types.NODE_STATUS_NEVER_GOSSIPED
+			}
+		case id%4 == 3:
+			n, _ := gossipDataDiff[nodeId]
+			olderTime := nodeInfo.LastUpdateTs.UnixNano() - 1000
+			n.LastUpdateTs = time.Unix(0, olderTime)
+			gossipDataDiff[nodeId] = n
+		}
+	}
+
+	g.UpdateGossipData(gossipDataDiff)
+	diffNodeInfoMap = make(types.NodeInfoMap)
+	for id, gossipData := range gossipDataDiff {
+		diffNodeInfo := convertGossipDataToNodeInfo(gossipData)
+		diffNodeInfoMap[id] = diffNodeInfo
+	}
+
+	for nodeId, nodeInfo := range g.nodeMap {
+		// id % 4 == 0 : node id is not existing
+		// id % 4 == 1 : store has old timestamp
+		// id % 4 == 2 : node id is invalid
+		// id % 4 == 3 : store has newer data
+		id, _ := strconv.Atoi(string(nodeId))
+		switch {
+		case id%4 != 3:
+			n, _ := diffNodeInfoMap[nodeId]
+			if !compareNodeInfo(n, nodeInfo) {
+				t.Error("Update failed, d: ", n, " o:", nodeInfo)
+			}
+		case id%4 == 3:
+			n, _ := diffNodeInfoMap[nodeId]
+			if compareNodeInfo(n, nodeInfo) {
+				t.Error("Wrongly Updated latest data d: ", n, " o: ", nodeInfo)
+			}
+			olderTime := n.LastUpdateTs.UnixNano() + 1000
+			ts := time.Unix(0, olderTime)
+			if ts != nodeInfo.LastUpdateTs {
+				t.Error("Wrongly Updated latest data d: ", n, " o: ", nodeInfo)
+			}
+		}
+	}
+}
+
+func TestGossipStoreIgnoreUnknownKeys(t *testing.T) {
+	printTestInfo()
+
+	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID)
+	time.Sleep(1 * time.Second)
+
+	// empty store and non-emtpy diff
+	gossipDataDiff := make(types.GossipDataMap)
+	nodeLen := 5
+	keyList := []string{"key1", "key2", "key3", "key4", "key5"}
+	for i := 0; i < nodeLen-1; i++ {
+		// Register keys except key5
+		str := ""
+		g.RegisterKey(types.StoreKey(keyList[i]), str)
+	}
+	fillUpGossipDataMap(gossipDataDiff, keyList, nodeLen)
+
+	g.UpdateGossipData(gossipDataDiff)
+	for id, nodeInfo := range g.nodeMap {
+		gossipData, ok := gossipDataDiff[id]
+		if !ok {
+			t.Error("Expected nodeId to be present in nodeMap: ", id)
+			continue
+		}
+		if len(nodeInfo.Value) == len(gossipData.Value) {
+			t.Error("Expected different store maps in nodeMap")
+		}
+		_, ok = nodeInfo.Value["key5"]
+		if ok {
+			t.Error("Expected key5 to be ignored from nodeMap")
+		}
+	}
+
+}
 func TestGossipStoreGetStoreKeys(t *testing.T) {
 	printTestInfo()
 

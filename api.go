@@ -52,6 +52,10 @@ type GossipStore interface {
 
 	// Remove a node from the database
 	RemoveNode(types.NodeId) error
+
+	// RegisterKey registers a key and an empty object which it can
+	// use to decode data received on wire
+	RegisterKey(types.StoreKey, interface{}) error
 }
 
 type Gossiper interface {

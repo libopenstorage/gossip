@@ -2,7 +2,6 @@ package proto
 
 import (
 	"bytes"
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -31,6 +30,8 @@ type GossipDelegate struct {
 	quorumTimeout      time.Duration
 	timeoutVersion     uint64
 	timeoutVersionLock sync.Mutex
+	// userNewHeaderFormat only used for testing backward compatibility
+	useNewHeaderFormat bool
 }
 
 func (gd *GossipDelegate) InitGossipDelegate(
@@ -42,6 +43,12 @@ func (gd *GossipDelegate) InitGossipDelegate(
 ) {
 	gd.GenNumber = genNumber
 	gd.nodeId = string(selfNodeId)
+	// ** Used only for testing backward compatibility
+	// TODO: Remove!
+	if gossipVersion == types.GOSSIP_TEST_VERSION {
+		gossipVersion = types.DEFAULT_GOSSIP_VERSION
+		gd.useNewHeaderFormat = true
+	}
 	gd.stateEvent = make(chan types.StateEvent)
 	// We start with a NOT_IN_QUORUM status
 	gd.InitStore(
@@ -68,24 +75,20 @@ func (gd *GossipDelegate) updateGossipTs() {
 	gd.lastGossipTs = time.Now()
 }
 
-func (gd *GossipDelegate) convertToBytes(obj interface{}) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	err := enc.Encode(obj)
-	if err != nil {
-		return []byte{}, err
-	}
-	return buf.Bytes(), nil
+func (gd *GossipDelegate) decodeGossipPacket(buf []byte, msg interface{}) error {
+	// Strip off the header
+	payload := buf[types.GOSSIP_HEADER_LENGTH:]
+	return gd.convertFromBytes(payload, msg)
 }
 
-func (gd *GossipDelegate) convertFromBytes(buf []byte, msg interface{}) error {
-	msgBuffer := bytes.NewBuffer(buf)
-	dec := gob.NewDecoder(msgBuffer)
-	err := dec.Decode(msg)
+func (gd *GossipDelegate) encodeGossipPacket(obj interface{}) ([]byte, error) {
+	payload, err := gd.convertToBytes(obj)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	header := make([]byte, types.GOSSIP_HEADER_LENGTH)
+	header[types.GH_VERSION_POS] = byte(types.GH_VERSION_1)
+	return append(header, payload...), nil
 }
 
 func (gd *GossipDelegate) gossipChecks(node *memberlist.Node) error {
@@ -120,7 +123,6 @@ func (gd *GossipDelegate) gossipChecks(node *memberlist.Node) error {
 	}
 	return err
 }
-
 
 // NodeMeta is used to retrieve meta-data about the current node
 // when broadcasting an alive message. It's length is limited to
@@ -163,21 +165,42 @@ func (gd *GossipDelegate) GetBroadcasts(overhead, limit int) [][]byte {
 // data can be sent here. See MergeRemoteState as well. The `join`
 // boolean indicates this is for a join instead of a push/pull.
 func (gd *GossipDelegate) LocalState(join bool) []byte {
+	var (
+		err            error
+		byteLocalState []byte
+	)
+
 	gd.updateSelfTs()
 
 	// We don't know which node we are talking to.
 	gs := NewGossipSessionInfo("", types.GD_ME_TO_PEER)
 	gs.Op = types.LocalPush
 
-	// We send our local state of nodeMap
-	// The receiver will decide which nodes to merge and which to ignore
-	localState := gd.GetLocalState()
-	byteLocalState, err := gd.convertToBytes(&localState)
-	if err != nil {
-		gs.Err = fmt.Sprintf("gossip: Error in LocalState. Unable to unmarshal: %v", err.Error())
-		logrus.Infof(gs.Err)
-		byteLocalState = []byte{}
+	// This flag added only for testing backward compatibility
+	// FUTURE USE: We will always use the new header pattern
+	// Sending and Receiving NodeInfoMap over the wire will be deprecated
+	if gd.useNewHeaderFormat {
+		// We send our local state of nodeMap
+		// The receiver will decide which nodes to merge and which to ignore
+		localState := gd.GetGossipData()
+		byteLocalState, err = gd.encodeGossipPacket(&localState)
+		if err != nil {
+			gs.Err = fmt.Sprintf("gossip: Error in LocalState. Unable to unmarshal: %v", err.Error())
+			logrus.Infof(gs.Err)
+			byteLocalState = []byte{}
+		}
+	} else {
+		// We send our local state of nodeMap
+		// The receiver will decide which nodes to merge and which to ignore
+		localState := gd.GetLocalState()
+		byteLocalState, err = gd.convertToBytes(&localState)
+		if err != nil {
+			gs.Err = fmt.Sprintf("gossip: Error in LocalState. Unable to unmarshal: %v", err.Error())
+			logrus.Infof(gs.Err)
+			byteLocalState = []byte{}
+		}
 	}
+
 	gs.Err = ""
 	gd.updateGossipTs()
 	gd.history.AddLatest(gs)
@@ -190,6 +213,7 @@ func (gd *GossipDelegate) LocalState(join bool) []byte {
 // boolean indicates this is for a join instead of a push/pull.
 func (gd *GossipDelegate) MergeRemoteState(buf []byte, join bool) {
 	var remoteState types.NodeInfoMap
+	var remoteGossipData types.GossipDataMap
 	if join == true {
 		// NotifyJoin will take care of this info
 		return
@@ -197,13 +221,23 @@ func (gd *GossipDelegate) MergeRemoteState(buf []byte, join bool) {
 	gd.updateSelfTs()
 
 	gs := NewGossipSessionInfo("", types.GD_PEER_TO_ME)
-	err := gd.convertFromBytes(buf, &remoteState)
-	if err != nil {
-		gs.Err = fmt.Sprintf("gossip: Error in unmarshalling peer's local data. Error : %v", err.Error())
-		logrus.Infof(gs.Err)
+	version := gd.handleGossipHeader(buf)
+	// This flag added only for testing backward compatibility
+	// FUTURE USE: We will always use the new header pattern
+	// Sending and Receiving NodeInfoMap over the wire will be deprecated
+	if version == types.GH_VERSION_BASE {
+		err := gd.convertFromBytes(buf, &remoteState)
+		if err != nil {
+			gs.Err = fmt.Sprintf("gossip: Error in unmarshalling peer's local data. Error : %v", err.Error())
+		}
+		gd.Update(remoteState)
+	} else {
+		err := gd.decodeGossipPacket(buf, &remoteGossipData)
+		if err != nil {
+			gs.Err = fmt.Sprintf("gossip: Error in unmarshalling peer's local data. Error : %v", err.Error())
+		}
+		gd.UpdateGossipData(remoteGossipData)
 	}
-
-	gd.Update(remoteState)
 	gs.Op = types.MergeRemote
 	gs.Err = ""
 	gd.updateGossipTs()
@@ -359,5 +393,15 @@ func (gd *GossipDelegate) handleStateEvents() {
 			go gd.startQuorumTimer()
 		}
 		gd.UpdateSelfStatus(gd.currentState.NodeStatus())
+	}
+}
+
+func (gd *GossipDelegate) handleGossipHeader(packet []byte) types.GossipHeaderVersion {
+	headerV1 := make([]byte, types.GOSSIP_HEADER_LENGTH)
+	headerV1[types.GH_VERSION_POS] = byte(types.GH_VERSION_1)
+	if bytes.HasPrefix(packet, headerV1) {
+		return types.GH_VERSION_1
+	} else {
+		return types.GH_VERSION_BASE
 	}
 }
