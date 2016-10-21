@@ -234,19 +234,14 @@ func TestGossipStoreUpdateData(t *testing.T) {
 	// empty store and non-emtpy diff
 	diff = make(types.NodeInfoMap)
 	nodeLen := 5
+	for i:=0;i<nodeLen;i++ {
+		g.AddNode(types.NodeId(strconv.Itoa(i)), types.NODE_STATUS_UP)
+	}
 	keyList := []types.StoreKey{"key1", "key2", "key3", "key4", "key5"}
 	for _, key := range keyList {
 		fillUpNodeInfoMap(types.NodeInfoMap(diff), key, nodeLen)
 	}
 	g.Update(diff)
-	// Update does not modify the statuses in the node info map.
-	// Its always memberlist who deals with statuses
-	// Fake that behavior
-	for id, _ := range diff {
-		nodeInfo, _ := g.nodeMap[id]
-		nodeInfo.Status = types.NODE_STATUS_UP
-		g.nodeMap[id] = nodeInfo
-	}
 
 	verifyNodeInfoMapEquality(types.NodeInfoMap(g.nodeMap), diff, t)
 
