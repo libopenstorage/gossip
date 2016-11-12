@@ -695,7 +695,7 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 		}
 	}
 
-	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)*2))
 	// verify all of them are same
 	for i := 1; i < len(nodes); i++ {
 		_, ok := shutdownNodes[i]
