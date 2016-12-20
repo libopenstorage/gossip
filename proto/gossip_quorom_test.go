@@ -41,7 +41,11 @@ func TestQuorumAllNodesUpOneByOne(t *testing.T) {
 
 	// Start Node1 with cluster size 2
 	node1 := types.NodeId("1")
-	g1, _ := startNode(t, nodes[1], node1, []string{nodes[0]}, map[types.NodeId]string{node0: nodes[0], node1: nodes[1]})
+	peers := map[types.NodeId]string{node0: nodes[0], node1: nodes[1]}
+	g1, _ := startNode(t, nodes[1], node1, []string{nodes[0]}, peers)
+	g0.UpdateCluster(peers)
+
+	time.Sleep(g1.GossipInterval() * time.Duration(len(nodes)+1))
 
 	if g1.GetSelfStatus() != types.NODE_STATUS_UP {
 		t.Error("Expected Node 1 to have status: ", types.NODE_STATUS_UP)

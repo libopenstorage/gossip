@@ -183,12 +183,13 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 		otherGossipers = append(otherGossipers, g)
 	}
 
-	// Let the nodes gossip and populate their memberlist
-	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodesIp)))
-
 	gZero.UpdateCluster(peers)
 	otherGossipers[0].UpdateCluster(peers)
 	otherGossipers[1].UpdateCluster(peers)
+
+	// Let the nodes gossip and populate their memberlist
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodesIp)))
+
 	// Now Kill the other nodes
 	for _, og := range otherGossipers {
 		err := og.Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodesIp)+1))
@@ -415,6 +416,18 @@ func TestGossiperGroupingOfNodesWithSameVersion(t *testing.T) {
 		"127.0.0.4:9824",
 		"127.0.0.5:9825",
 	}
+
+	peers1 := make(map[types.NodeId]string)
+	peers2 := make(map[types.NodeId]string)
+	for i, ip := range nodes {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		if i != 0 && i%2 == 0 {
+			peers2[nodeId] = ip
+		} else {
+			peers1[nodeId] = ip
+		}
+	}
+
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
 
@@ -424,17 +437,21 @@ func TestGossiperGroupingOfNodesWithSameVersion(t *testing.T) {
 		var g *GossiperImpl
 		if i == 0 {
 			g, _ = NewGossiperImpl(nodeId, id, []string{}, types.DEFAULT_GOSSIP_VERSION)
+			g.UpdateCluster(peers1)
 		} else {
 			// Nodes 2 and 4 have same version. They should form a memberlist
 			if i == 2 {
 				// Set a different gossip version
 				g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, "v2")
+				g.UpdateCluster(peers2)
 			} else if i == 4 {
 				// Set a different gossip version
 				// This gossiper will try to connect to nodes 0 and 2. 0 should fail and 2 should succeed
 				g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0], nodes[2]}, "v2")
+				g.UpdateCluster(peers2)
 			} else {
 				g, _ = NewGossiperImpl(nodeId, id, []string{nodes[0]}, types.DEFAULT_GOSSIP_VERSION)
+				g.UpdateCluster(peers1)
 			}
 		}
 
@@ -531,6 +548,7 @@ func TestGossiperUpdateNodeIp(t *testing.T) {
 	gossipers[0].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
 	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)))
 	changedGossiper, _ := NewGossiperImpl("127.0.0.4:9328", types.NodeId("0"), []string{"127.0.0.3:9327"}, types.DEFAULT_GOSSIP_VERSION)
+	changedGossiper.UpdateCluster(peers)
 	gossipers[0] = changedGossiper
 	// Change the IP in the nodes array
 	nodes[0] = "127.0.0.4:9328"
@@ -551,7 +569,7 @@ func TestGossiperUpdateNodeIp(t *testing.T) {
 			// All nodes must be up
 			if n.Status != types.NODE_STATUS_UP {
 				t.Error("Gossiper ", i,
-					"Expected node status to be up: ", nodeId, " n:", n)
+					"Expected node status to be up: ", nodeId, "Got :", n.Status)
 			}
 
 		}
@@ -619,6 +637,13 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 		"127.0.0.5:9156",
 		"127.0.0.6:9157",
 	}
+
+	peers := make(map[types.NodeId]string)
+	for i, ip := range nodes {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		peers[nodeId] = ip
+	}
+
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[string]*GossiperImpl)
 	for i, nodeId := range nodes {
@@ -642,9 +667,7 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 		}
 
 		g, _ := NewGossiperImpl(nodeId, types.NodeId(strconv.Itoa(i)), []string{neighbourNode, randomNode}, types.DEFAULT_GOSSIP_VERSION)
-
-		//g.SetGossipInterval(time.Duration(1500+rand.Intn(200)) * time.Millisecond)
-
+		g.UpdateCluster(peers)
 		gossipers[nodeId] = g
 	}
 
@@ -695,7 +718,7 @@ func TestGossiperMultipleNodesGoingUpDown(t *testing.T) {
 		}
 	}
 
-	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)*2))
+	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)*3))
 	// verify all of them are same
 	for i := 1; i < len(nodes); i++ {
 		_, ok := shutdownNodes[i]
@@ -969,6 +992,17 @@ func TestGossiperNodesWithDifferentClusterId(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
 
+	peers1 := make(map[types.NodeId]string)
+	peers2 := make(map[types.NodeId]string)
+	for i, ip := range nodes {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		if i == 2 || i == 4 {
+			peers2[nodeId] = ip
+		} else {
+			peers1[nodeId] = ip
+		}
+	}
+
 	// Start gossipers for all nodes
 	for i, nodeId := range nodes {
 		id := types.NodeId(strconv.Itoa(i))
@@ -976,8 +1010,10 @@ func TestGossiperNodesWithDifferentClusterId(t *testing.T) {
 		if i == 2 || i == 4 {
 			// Set a different clusterId
 			g, _ = NewGossiperImplWithClusterId(nodeId, id, nodes, types.DEFAULT_GOSSIP_VERSION, "test-cluster-1")
+			g.UpdateCluster(peers2)
 		} else {
 			g, _ = NewGossiperImplWithClusterId(nodeId, id, nodes, types.DEFAULT_GOSSIP_VERSION, "test-cluster-2")
+			g.UpdateCluster(peers1)
 		}
 
 		gossipers[i] = g

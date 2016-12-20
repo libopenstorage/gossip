@@ -234,7 +234,7 @@ func TestGossipStoreUpdateData(t *testing.T) {
 	// empty store and non-emtpy diff
 	diff = make(types.NodeInfoMap)
 	nodeLen := 5
-	for i:=0;i<nodeLen;i++ {
+	for i := 0; i < nodeLen; i++ {
 		g.AddNode(types.NodeId(strconv.Itoa(i)), types.NODE_STATUS_UP)
 	}
 	keyList := []types.StoreKey{"key1", "key2", "key3", "key4", "key5"}
