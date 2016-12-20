@@ -33,4 +33,4 @@ vendor: vendor-update vendor-without-update
 all: test
 
 test:
-	cd proto && go test --timeout 1h
+	cd proto && go test -v --timeout 1h
