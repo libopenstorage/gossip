@@ -125,7 +125,7 @@ func TestGossiperStartStopGetNode(t *testing.T) {
 	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodesIp)))
 	var peerNodes []string
 	// check the nodelist is same
-	for i, _ := range nodesIp {
+	for i := range nodesIp {
 		peerNodes = gossipers[i].GetNodes()
 		if len(peerNodes) != len(nodesIp) {
 			t.Error("Peer nodes len does not match added nodes, got: ",
@@ -145,7 +145,7 @@ outer:
 	}
 
 	// test stop gossiper
-	for i, _ := range nodesIp {
+	for i := range nodesIp {
 		// It takes time to propagate the leave message
 		err := gossipers[i].Stop(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodesIp)+1))
 		if err != nil {
