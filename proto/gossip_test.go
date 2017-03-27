@@ -38,56 +38,6 @@ func NewGossiperImplWithClusterId(ip string, selfNodeId types.NodeId, knownIps [
 	return newGossiperImpl(ip, selfNodeId, knownIps, version, clusterId)
 }
 
-func TestGossiperHistory(t *testing.T) {
-	var maxLen uint8 = 5
-	h := NewGossipHistory(maxLen)
-
-	for i := 0; i < 2*int(maxLen); i++ {
-		h.AddLatest(NewGossipSessionInfo(strconv.Itoa(i),
-			types.GD_ME_TO_PEER))
-		if i < 5 {
-			records := h.GetAllRecords()
-			if len(records) != i+1 {
-				t.Error("Length of returned records don't match, r:", len(records),
-					" expected: ", h.nodes.Len())
-			}
-		}
-	}
-
-	if h.nodes.Len() != int(maxLen) {
-		t.Error("Len mismatch h: ", h.nodes.Len(), " expected: ", maxLen)
-	}
-
-	records := h.GetAllRecords()
-	if len(records) != h.nodes.Len() {
-		t.Error("Length of returned records don't match, r:", len(records),
-			" expected: ", h.nodes.Len())
-	}
-
-	var p *types.GossipSessionInfo = nil
-	for _, c := range records {
-		if p != nil {
-			pId, ok3 := strconv.Atoi(p.Node)
-			cId, ok4 := strconv.Atoi(c.Node)
-
-			if ok3 != nil || ok4 != nil {
-				t.Error("Failed to get elements: p: ", p, " c: ", c)
-				continue
-			}
-
-			if pId < cId {
-				t.Error("Data maintained in wrong order ", p, " c: ", c)
-			}
-
-			if p.Ts.Before(c.Ts) {
-				t.Error("Data maintained in wrong order ", p, " c: ", c)
-			}
-		}
-		p = c
-	}
-
-}
-
 func TestGossiperStartStopGetNode(t *testing.T) {
 	printTestInfo()
 

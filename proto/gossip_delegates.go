@@ -21,7 +21,6 @@ type GossipDelegate struct {
 	// last gossip time
 	lastGossipTsLock sync.Mutex
 	lastGossipTs     time.Time
-	history          *GossipHistory
 	// channel to receive state change events
 	stateEvent chan types.StateEvent
 	// current State object
@@ -50,7 +49,6 @@ func (gd *GossipDelegate) InitGossipDelegate(
 		clusterId,
 	)
 	gd.quorumTimeout = quorumTimeout
-	gd.history = NewGossipHistory(20)
 }
 
 func (gd *GossipDelegate) InitCurrentState(clusterSize int) {
@@ -143,22 +141,13 @@ func (gd *GossipDelegate) GetBroadcasts(overhead, limit int) [][]byte {
 func (gd *GossipDelegate) LocalState(join bool) []byte {
 	gd.updateSelfTs()
 
-	// We don't know which node we are talking to.
-	gs := NewGossipSessionInfo("", types.GD_ME_TO_PEER)
-	gs.Op = types.LocalPush
-
 	// We send our local state of nodeMap
 	// The receiver will decide which nodes to merge and which to ignore
-
 	byteLocalState, err := gd.GetLocalStateInBytes()
 	if err != nil {
-		gs.Err = fmt.Sprintf("gossip: Error in LocalState. Unable to unmarshal: %v", err.Error())
-		logrus.Infof(gs.Err)
 		byteLocalState = []byte{}
 	}
-	gs.Err = ""
 	gd.updateGossipTs()
-	gd.history.AddLatest(gs)
 	return byteLocalState
 }
 
@@ -174,18 +163,14 @@ func (gd *GossipDelegate) MergeRemoteState(buf []byte, join bool) {
 	}
 	gd.updateSelfTs()
 
-	gs := NewGossipSessionInfo("", types.GD_PEER_TO_ME)
 	err := gd.convertFromBytes(buf, &remoteState)
 	if err != nil {
-		gs.Err = fmt.Sprintf("gossip: Error in unmarshalling peer's local data. Error : %v", err.Error())
-		logrus.Infof(gs.Err)
+		logrus.Infof("gossip: Error in unmarshalling peer's local data. "+
+			"Error : %v", err.Error())
 	}
 
 	gd.Update(remoteState)
-	gs.Op = types.MergeRemote
-	gs.Err = ""
 	gd.updateGossipTs()
-	gd.history.AddLatest(gs)
 	return
 }
 
@@ -198,20 +183,14 @@ func (gd *GossipDelegate) NotifyJoin(node *memberlist.Node) {
 		return
 	}
 
-	gs := NewGossipSessionInfo(nodeName, types.GD_PEER_TO_ME)
-	gs.Op = types.NotifyJoin
 	gd.updateGossipTs()
 
 	// NotifyAlive should remove a node from memberlist if the
 	// gossip version mismatches.
 	// Nevertheless we are doing an extra check here.
-	err := gd.gossipChecks(node)
-	if err != nil {
-		gs.Err = err.Error()
+	if err := gd.gossipChecks(node); err != nil {
 		gd.RemoveNode(types.NodeId(nodeName))
 	}
-
-	gd.history.AddLatest(gs)
 }
 
 // NotifyLeave is invoked when a node is detected to have left.
@@ -229,11 +208,7 @@ func (gd *GossipDelegate) NotifyLeave(node *memberlist.Node) {
 		gd.triggerStateEvent(types.NODE_LEAVE)
 	}
 
-	gs := NewGossipSessionInfo(nodeName, types.GD_PEER_TO_ME)
-	gs.Err = ""
-	gs.Op = types.NotifyLeave
 	gd.updateGossipTs()
-	gd.history.AddLatest(gs)
 	return
 }
 
@@ -266,15 +241,10 @@ func (gd *GossipDelegate) NotifyAlive(node *memberlist.Node) error {
 		return nil
 	}
 
-	gs := NewGossipSessionInfo(nodeName, types.GD_PEER_TO_ME)
-	gs.Op = types.NotifyAlive
-	gs.Err = ""
 	gd.updateGossipTs()
 
 	err := gd.gossipChecks(node)
 	if err != nil {
-		gs.Err = err.Error()
-		gd.history.AddLatest(gs)
 		gd.RemoveNode(types.NodeId(nodeName))
 		// Do not add this node to the memberlist.
 		// Returning a non-nil err value
@@ -287,7 +257,6 @@ func (gd *GossipDelegate) NotifyAlive(node *memberlist.Node) error {
 		gd.triggerStateEvent(types.NODE_ALIVE)
 	} // else if err != nil -> A new node sending us data. We do not add node unless it is added
 	// in our local map externally
-	gd.history.AddLatest(gs)
 	return nil
 }
 

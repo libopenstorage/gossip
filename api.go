@@ -72,9 +72,6 @@ type Gossiper interface {
 	// GetNodes returns a list of the connection addresses
 	GetNodes() []string
 
-	// GetGossipHistory returns the gossip records for last 20 sessions.
-	GetGossipHistory() []*types.GossipSessionInfo
-
 	// UpdateCluster updates gossip with latest peer nodes Id-Ip mapping
 	UpdateCluster(map[types.NodeId]string)
 

@@ -61,14 +61,6 @@ const (
 	NotifyLeave GossipOp = "Notify Leave"
 )
 
-type GossipSessionInfo struct {
-	Node string
-	Ts   time.Time
-	Dir  GossipDirection
-	Err  string
-	Op   GossipOp
-}
-
 type NodeMetaInfo struct {
 	ClusterId     string
 	GossipVersion string
