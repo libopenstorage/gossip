@@ -30,12 +30,32 @@ func newGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string, vers
 	return g, err
 }
 
-func NewGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string, version string) (*GossiperImpl, error) {
+func NewGossiperImpl(
+	ip string,
+	selfNodeId types.NodeId,
+	knownIps []string,
+	version string,
+) (*GossiperImpl, error) {
 	return newGossiperImpl(ip, selfNodeId, knownIps, version, DEFAULT_CLUSTER_ID)
 }
 
-func NewGossiperImplWithClusterId(ip string, selfNodeId types.NodeId, knownIps []string, version, clusterId string) (*GossiperImpl, error) {
+func NewGossiperImplWithClusterId(
+	ip string,
+	selfNodeId types.NodeId,
+	knownIps []string,
+	version,
+	clusterId string,
+) (*GossiperImpl, error) {
 	return newGossiperImpl(ip, selfNodeId, knownIps, version, clusterId)
+}
+
+func getNodeUpdateMap(nodesIp []string) map[types.NodeId]types.NodeUpdate {
+	peers := make(map[types.NodeId]types.NodeUpdate)
+	for i, ip := range nodesIp {
+		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
+		peers[nodeId] = types.NodeUpdate{ip, true}
+	}
+	return peers
 }
 
 func TestGossiperStartStopGetNode(t *testing.T) {
@@ -49,11 +69,7 @@ func TestGossiperStartStopGetNode(t *testing.T) {
 		"127.0.0.5:8127",
 	}
 
-	peers := make(map[types.NodeId]string)
-	for i, ip := range nodesIp {
-		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
-		peers[nodeId] = ip
-	}
+	peers := getNodeUpdateMap(nodesIp)
 
 	clusterSize := len(nodesIp)
 	gossipers := make([]*GossiperImpl, clusterSize)
@@ -113,11 +129,7 @@ func TestGossiperOnlyOneNodeGossips(t *testing.T) {
 		"127.0.0.3:9224",
 	}
 
-	peers := make(map[types.NodeId]string)
-	for i, ip := range nodesIp {
-		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
-		peers[nodeId] = ip
-	}
+	peers := getNodeUpdateMap(nodesIp)
 
 	rand.Seed(time.Now().UnixNano())
 	id := types.NodeId(strconv.Itoa(0))
@@ -196,11 +208,7 @@ func TestGossiperOneNodeNeverGossips(t *testing.T) {
 		"127.0.0.2:9623",
 		"127.0.0.3:9624",
 	}
-	peers := make(map[types.NodeId]string)
-	for i, ip := range nodes {
-		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
-		peers[nodeId] = ip
-	}
+	peers := getNodeUpdateMap(nodes)
 
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
@@ -367,14 +375,14 @@ func TestGossiperGroupingOfNodesWithSameVersion(t *testing.T) {
 		"127.0.0.5:9825",
 	}
 
-	peers1 := make(map[types.NodeId]string)
-	peers2 := make(map[types.NodeId]string)
+	peers1 := make(map[types.NodeId]types.NodeUpdate)
+	peers2 := make(map[types.NodeId]types.NodeUpdate)
 	for i, ip := range nodes {
 		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
 		if i != 0 && i%2 == 0 {
-			peers2[nodeId] = ip
+			peers2[nodeId] = types.NodeUpdate{ip, true}
 		} else {
-			peers1[nodeId] = ip
+			peers1[nodeId] = types.NodeUpdate{ip, true}
 		}
 	}
 
@@ -466,11 +474,7 @@ func TestGossiperUpdateNodeIp(t *testing.T) {
 		"127.0.0.3:9327",
 	}
 
-	peers := make(map[types.NodeId]string)
-	for i, ip := range nodes {
-		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
-		peers[nodeId] = ip
-	}
+	peers := getNodeUpdateMap(nodes)
 
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
@@ -704,11 +708,7 @@ func TestGossiperAddNodeExternally(t *testing.T) {
 		"127.0.0.2:9159",
 	}
 
-	peers := make(map[types.NodeId]string)
-	for i, ip := range nodes {
-		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
-		peers[nodeId] = ip
-	}
+	peers := getNodeUpdateMap(nodes)
 
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
@@ -721,7 +721,7 @@ func TestGossiperAddNodeExternally(t *testing.T) {
 	}
 
 	nodes = append(nodes, "127.0.0.3:9160")
-	peers[types.NodeId("2")] = nodes[2]
+	peers[types.NodeId("2")] = types.NodeUpdate{nodes[2], true}
 
 	for _, g := range gossipers {
 		g.UpdateCluster(peers)
@@ -786,11 +786,7 @@ func TestGossiperRemoveNodeExternally(t *testing.T) {
 		"127.0.0.3:9163",
 	}
 
-	peers := make(map[types.NodeId]string)
-	for i, ip := range nodes {
-		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
-		peers[nodeId] = ip
-	}
+	peers := getNodeUpdateMap(nodes)
 
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
@@ -857,11 +853,7 @@ func TestGossiperExternalNodeLeaveSelfKill(t *testing.T) {
 		"127.0.0.3:9166",
 	}
 
-	peers := make(map[types.NodeId]string)
-	for i, ip := range nodes {
-		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
-		peers[nodeId] = ip
-	}
+	peers := getNodeUpdateMap(nodes)
 
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
@@ -901,11 +893,7 @@ func TestGossiperExternalNodeLeavePeerKill(t *testing.T) {
 		"127.0.0.3:9169",
 	}
 
-	peers := make(map[types.NodeId]string)
-	for i, ip := range nodes {
-		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
-		peers[nodeId] = ip
-	}
+	peers := getNodeUpdateMap(nodes)
 
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
@@ -945,14 +933,14 @@ func TestGossiperNodesWithDifferentClusterId(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	gossipers := make(map[int]*GossiperImpl)
 
-	peers1 := make(map[types.NodeId]string)
-	peers2 := make(map[types.NodeId]string)
+	peers1 := make(map[types.NodeId]types.NodeUpdate)
+	peers2 := make(map[types.NodeId]types.NodeUpdate)
 	for i, ip := range nodes {
 		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
 		if i == 2 || i == 4 {
-			peers2[nodeId] = ip
+			peers2[nodeId] = types.NodeUpdate{ip, true}
 		} else {
-			peers1[nodeId] = ip
+			peers1[nodeId] = types.NodeUpdate{ip, true}
 		}
 	}
 
@@ -962,10 +950,12 @@ func TestGossiperNodesWithDifferentClusterId(t *testing.T) {
 		var g *GossiperImpl
 		if i == 2 || i == 4 {
 			// Set a different clusterId
-			g, _ = NewGossiperImplWithClusterId(nodeId, id, nodes, types.DEFAULT_GOSSIP_VERSION, "test-cluster-1")
+			g, _ = NewGossiperImplWithClusterId(nodeId, id, nodes,
+				types.DEFAULT_GOSSIP_VERSION, "test-cluster-1")
 			g.UpdateCluster(peers2)
 		} else {
-			g, _ = NewGossiperImplWithClusterId(nodeId, id, nodes, types.DEFAULT_GOSSIP_VERSION, "test-cluster-2")
+			g, _ = NewGossiperImplWithClusterId(nodeId, id, nodes,
+				types.DEFAULT_GOSSIP_VERSION, "test-cluster-2")
 			g.UpdateCluster(peers1)
 		}
 

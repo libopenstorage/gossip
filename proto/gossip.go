@@ -118,7 +118,7 @@ func (g *GossiperImpl) Init(
 }
 
 func (g *GossiperImpl) Start(knownIps []string) error {
-	g.InitCurrentState(len(knownIps) + 1)
+	g.InitCurrentState(uint(len(knownIps) + 1))
 	list, err := ml.Create(g.mlConf)
 	if err != nil {
 		log.Warnf("gossip: Unable to create memberlist: " + err.Error())
@@ -166,10 +166,9 @@ func (g *GossiperImpl) GetNodes() []string {
 		nodeList[i] = node.Addr.String()
 	}
 	return nodeList
-
 }
 
-func (g *GossiperImpl) UpdateCluster(peers map[types.NodeId]string) {
+func (g *GossiperImpl) UpdateCluster(peers map[types.NodeId]types.NodeUpdate) {
 	g.updateCluster(peers)
 	g.triggerStateEvent(types.UPDATE_CLUSTER_SIZE)
 }
@@ -181,7 +180,8 @@ func (g *GossiperImpl) ExternalNodeLeave(nodeId types.NodeId) types.NodeId {
 		return nodeId
 	} else {
 		// We are the culprit as we are not in quorum
-		log.Infof("gossip: Our Status: %v. We should go down.", g.GetSelfStatus())
+		log.Infof("gossip: Our Status: %v. We should go down.",
+			g.GetSelfStatus())
 		return g.NodeId()
 	}
 }

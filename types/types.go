@@ -43,23 +43,12 @@ const (
 	TIMEOUT
 )
 
-type GossipDirection uint8
-
-const (
-	// Direction of gossip
-	GD_ME_TO_PEER GossipDirection = iota
-	GD_PEER_TO_ME
-)
-
-type GossipOp string
-
-const (
-	LocalPush   GossipOp = "Local Push"
-	MergeRemote GossipOp = "Merge Remote"
-	NotifyAlive GossipOp = "Notify Alive"
-	NotifyJoin  GossipOp = "Notify Join"
-	NotifyLeave GossipOp = "Notify Leave"
-)
+type NodeUpdate struct {
+	// Addr is the contact address for the node
+	Addr string
+	// QuorumMember is true if node participates in quorum decisions
+	QuorumMember bool
+}
 
 type NodeMetaInfo struct {
 	ClusterId     string
@@ -76,6 +65,7 @@ type NodeInfo struct {
 	WaitForGenUpdateTs time.Time
 	Status             NodeStatus
 	Value              StoreMap
+	QuorumMember       bool
 }
 
 type NodeValue struct {

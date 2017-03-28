@@ -51,9 +51,10 @@ func (gd *GossipDelegate) InitGossipDelegate(
 	gd.quorumTimeout = quorumTimeout
 }
 
-func (gd *GossipDelegate) InitCurrentState(clusterSize int) {
+func (gd *GossipDelegate) InitCurrentState(clusterSize uint) {
 	// Our initial state is NOT_IN_QUORUM
-	gd.currentState = state.GetNotInQuorum(clusterSize, types.NodeId(gd.nodeId), gd.stateEvent)
+	gd.currentState = state.GetNotInQuorum(
+		uint(clusterSize), types.NodeId(gd.nodeId), gd.stateEvent)
 	// Start the go routine which handles all the events
 	// and changes state of the node
 	go gd.handleStateEvents()
@@ -302,16 +303,20 @@ func (gd *GossipDelegate) handleStateEvents() {
 		case types.NODE_LEAVE:
 			gd.currentState, _ = gd.currentState.NodeLeave(gd.GetLocalState())
 		case types.UPDATE_CLUSTER_SIZE:
-			gd.currentState, _ = gd.currentState.UpdateClusterSize(gd.getClusterSize(), gd.GetLocalState())
+			gd.currentState, _ = gd.currentState.UpdateClusterSize(
+				gd.getNumQuorumMembers(), gd.GetLocalState())
 		case types.TIMEOUT:
-			newState, _ := gd.currentState.Timeout(gd.getClusterSize(), gd.GetLocalState())
+			newState, _ := gd.currentState.Timeout(
+				gd.getNumQuorumMembers(), gd.GetLocalState())
 			if newState.NodeStatus() != gd.currentState.NodeStatus() {
-				logrus.Infof("gossip: Quorum Timeout. Waited for (%v)", gd.quorumTimeout)
+				logrus.Infof("gossip: Quorum Timeout. Waited for (%v)",
+					gd.quorumTimeout)
 			}
 			gd.currentState = newState
 		}
 		newStatus := gd.currentState.NodeStatus()
-		if previousStatus == types.NODE_STATUS_UP && newStatus == types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
+		if previousStatus == types.NODE_STATUS_UP &&
+			newStatus == types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
 			// Start a timer
 			go gd.startQuorumTimer()
 		}
