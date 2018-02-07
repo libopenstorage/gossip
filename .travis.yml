@@ -2,8 +2,8 @@ sudo: required
 dist: trusty
 language: go
 go:
-  - 1.6
-before_install:  
+  - 1.9
+before_install:
   - sudo apt-get update -yq
 script:
   - make test
