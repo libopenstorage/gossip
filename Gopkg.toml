@@ -6,27 +6,6 @@
 # required = ["github.com/user/thing/cmd/thing"]
 # ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
 #
-# [[constraint]]
-#   name = "github.com/user/project"
-#   version = "1.0.0"
-#
-# [[constraint]]
-#   name = "github.com/user/project2"
-#   branch = "dev"
-#   source = "github.com/myfork/project2"
-#
-# [[override]]
-#   name = "github.com/x/y"
-#   version = "2.4.0"
-#
-# [prune]
-#   non-go = false
-#   go-tests = true
-#   unused-packages = true
-
-[[override]]
-  name = "golang.org/x/sys"
-  revision = "320cb01ddbbf0473674c2585f9b6e245721de355"
 
 [[override]]
   name = "github.com/miekg/dns"
@@ -47,10 +26,6 @@
 [[constraint]]
   name = "github.com/hashicorp/memberlist"
   revision = "7c7d6bae440fb7c6dcde850672e0f68263f9e29c"
-
-[[constraint]]
-  name = "github.com/sirupsen/logrus"
-  revision = "6d9ae300aaf85d6acd2e5424081c7fcddb21dab8"
 
 [prune]
   go-tests = true
