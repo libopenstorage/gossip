@@ -1,12 +1,13 @@
 package proto
 
 import (
-	"github.com/libopenstorage/gossip/types"
 	"math/rand"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/libopenstorage/gossip/types"
 )
 
 const (
@@ -26,7 +27,7 @@ func newGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string, vers
 	}
 	g.Init(ip, selfNodeId, 1, gi, version, clusterId)
 	g.selfCorrect = false
-	err := g.Start(knownIps)
+	err := g.Start(knownIps, "")
 	return g, err
 }
 
@@ -53,7 +54,7 @@ func getNodeUpdateMap(nodesIp []string) map[types.NodeId]types.NodeUpdate {
 	peers := make(map[types.NodeId]types.NodeUpdate)
 	for i, ip := range nodesIp {
 		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
-		peers[nodeId] = types.NodeUpdate{ip, true}
+		peers[nodeId] = types.NodeUpdate{ip, true, ""}
 	}
 	return peers
 }
@@ -380,9 +381,9 @@ func TestGossiperGroupingOfNodesWithSameVersion(t *testing.T) {
 	for i, ip := range nodes {
 		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
 		if i != 0 && i%2 == 0 {
-			peers2[nodeId] = types.NodeUpdate{ip, true}
+			peers2[nodeId] = types.NodeUpdate{ip, true, ""}
 		} else {
-			peers1[nodeId] = types.NodeUpdate{ip, true}
+			peers1[nodeId] = types.NodeUpdate{ip, true, ""}
 		}
 	}
 
@@ -721,7 +722,7 @@ func TestGossiperAddNodeExternally(t *testing.T) {
 	}
 
 	nodes = append(nodes, "127.0.0.3:9160")
-	peers[types.NodeId("2")] = types.NodeUpdate{nodes[2], true}
+	peers[types.NodeId("2")] = types.NodeUpdate{nodes[2], true, ""}
 
 	for _, g := range gossipers {
 		g.UpdateCluster(peers)
@@ -938,9 +939,9 @@ func TestGossiperNodesWithDifferentClusterId(t *testing.T) {
 	for i, ip := range nodes {
 		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
 		if i == 2 || i == 4 {
-			peers2[nodeId] = types.NodeUpdate{ip, true}
+			peers2[nodeId] = types.NodeUpdate{ip, true, ""}
 		} else {
-			peers1[nodeId] = types.NodeUpdate{ip, true}
+			peers1[nodeId] = types.NodeUpdate{ip, true, ""}
 		}
 	}
 

@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/hashicorp/logutils"
 	ml "github.com/hashicorp/memberlist"
 	"github.com/libopenstorage/gossip/types"
+	log "github.com/sirupsen/logrus"
 )
 
 type GossipNode struct {
@@ -117,8 +117,15 @@ func (g *GossiperImpl) Init(
 	rand.Seed(time.Now().UnixNano())
 }
 
-func (g *GossiperImpl) Start(knownIps []string) error {
+func (g *GossiperImpl) Start(knownIps []string, activeFailureDomain string) error {
+	// If there is an active failure domain, set that in the gossip store
+	// before we start memberlist
+	if activeFailureDomain != "" {
+		g.markActiveFailureDomain(activeFailureDomain)
+	}
+
 	g.InitCurrentState(uint(len(knownIps) + 1))
+
 	list, err := ml.Create(g.mlConf)
 	if err != nil {
 		log.Warnf("gossip: Unable to create memberlist: " + err.Error())
@@ -183,5 +190,23 @@ func (g *GossiperImpl) ExternalNodeLeave(nodeId types.NodeId) types.NodeId {
 		log.Infof("gossip: Our Status: %v. We should go down.",
 			g.GetSelfStatus())
 		return g.NodeId()
+	}
+}
+
+func (g *GossiperImpl) MarkActiveFailureDomain(activeFailureDomain string) {
+	if len(activeFailureDomain) > 0 {
+		log.Infof("gossip: Marking %v as the active failure domain", activeFailureDomain)
+	} else {
+		log.Infof("gossip: Removing any active failure domains")
+	}
+	g.markActiveFailureDomain(activeFailureDomain)
+	g.triggerStateEvent(types.MARK_ACTIVE_FAILURE_DOMAIN)
+}
+
+func (g *GossiperImpl) UpdateSelfFailureDomain(selfFailureDomain string) {
+	newUpdate := g.updateSelfFailureDomain(selfFailureDomain)
+	if newUpdate {
+		// trigger a SelfAlive event
+		g.triggerStateEvent(types.SELF_ALIVE)
 	}
 }

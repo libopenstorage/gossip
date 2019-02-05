@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/libopenstorage/gossip/types"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -31,6 +31,10 @@ type GossipStoreImpl struct {
 	clusterSize uint
 	// numQuorumMembers is the number of members which participate in quorum
 	numQuorumMembers uint
+	// activeFailureDomain if set is the current failure domain which is active
+	// in case of a network split. All the nodes in the active failure domain
+	// will continue to function while other nodes will stay out of quorum
+	activeFailureDomain string
 	// Ts at which we lost quorum
 	lostQuorumTs time.Time
 }
@@ -95,6 +99,23 @@ func (s *GossipStoreImpl) UpdateSelf(key types.StoreKey, val interface{}) {
 	nodeInfo.Value[key] = val
 	nodeInfo.LastUpdateTs = time.Now()
 	s.nodeMap[s.id] = nodeInfo
+}
+
+func (s *GossipStoreImpl) updateSelfFailureDomain(selfFailureDomain string) bool {
+	s.Lock()
+	defer s.Unlock()
+
+	nodeInfo, _ := s.nodeMap[s.id]
+	previousFailureDomain := nodeInfo.FailureDomain
+
+	// Update the failure domain only if there is a change
+	if previousFailureDomain != selfFailureDomain {
+		nodeInfo.FailureDomain = selfFailureDomain
+		nodeInfo.LastUpdateTs = time.Now()
+		s.nodeMap[s.id] = nodeInfo
+		return true
+	}
+	return false
 }
 
 func (s *GossipStoreImpl) UpdateSelfStatus(status types.NodeStatus) {
@@ -183,21 +204,24 @@ func (s *GossipStoreImpl) AddNode(
 	id types.NodeId,
 	status types.NodeStatus,
 	quorumMember bool,
+	failureDomain string,
 ) {
 	s.Lock()
 	defer s.Unlock()
-	s.addNodeUnlocked(id, status, quorumMember)
+	s.addNodeUnlocked(id, status, quorumMember, failureDomain)
 }
 
 func (s *GossipStoreImpl) addNodeUnlocked(
 	id types.NodeId,
 	status types.NodeStatus,
 	quorumMember bool,
+	failureDomain string,
 ) {
 	if nodeInfo, ok := s.nodeMap[id]; ok {
 		nodeInfo.Status = status
 		nodeInfo.LastUpdateTs = time.Now()
 		nodeInfo.QuorumMember = quorumMember
+		nodeInfo.FailureDomain = failureDomain
 		s.nodeMap[id] = nodeInfo
 		return
 	}
@@ -210,6 +234,7 @@ func (s *GossipStoreImpl) addNodeUnlocked(
 		Status:             status,
 		Value:              make(types.StoreMap),
 		QuorumMember:       quorumMember,
+		FailureDomain:      failureDomain,
 	}
 	logrus.Infof("gossip: Adding Node to gossip map: %v", id)
 }
@@ -316,14 +341,16 @@ func (s *GossipStoreImpl) updateCluster(
 	}
 	for _, nodeId := range addNodeIds {
 		update, _ := peers[nodeId]
-		s.addNodeUnlocked(nodeId, types.NODE_STATUS_DOWN, update.QuorumMember)
+		s.addNodeUnlocked(nodeId, types.NODE_STATUS_DOWN, update.QuorumMember, update.FailureDomain)
 	}
 
 	// Update quorum members
+	// Update the failure domains for the nodes
 	s.numQuorumMembers = 0
 	for id, nodeInfo := range s.nodeMap {
 		if update, ok := peers[id]; ok {
 			nodeInfo.QuorumMember = update.QuorumMember
+			nodeInfo.FailureDomain = update.FailureDomain
 			s.nodeMap[id] = nodeInfo
 		}
 		if nodeInfo.QuorumMember {
@@ -334,6 +361,14 @@ func (s *GossipStoreImpl) updateCluster(
 
 func (s *GossipStoreImpl) getNumQuorumMembers() uint {
 	return s.numQuorumMembers
+}
+
+func (s *GossipStoreImpl) markActiveFailureDomain(activeFailureDomain string) {
+	s.activeFailureDomain = activeFailureDomain
+}
+
+func (s *GossipStoreImpl) getActiveFailureDomain() string {
+	return s.activeFailureDomain
 }
 
 func (s *GossipStoreImpl) convertToBytes(obj interface{}) ([]byte, error) {

@@ -41,6 +41,7 @@ const (
 	NODE_LEAVE
 	UPDATE_CLUSTER_SIZE
 	TIMEOUT
+	MARK_ACTIVE_FAILURE_DOMAIN
 )
 
 type NodeUpdate struct {
@@ -48,6 +49,8 @@ type NodeUpdate struct {
 	Addr string
 	// QuorumMember is true if node participates in quorum decisions
 	QuorumMember bool
+	// FailureDomain of the node
+	FailureDomain string
 }
 
 type NodeMetaInfo struct {
@@ -66,6 +69,8 @@ type NodeInfo struct {
 	Status             NodeStatus
 	Value              StoreMap
 	QuorumMember       bool
+	// FailureDomain indicates the failure domain in which this node lies
+	FailureDomain string
 }
 
 type NodeValue struct {
