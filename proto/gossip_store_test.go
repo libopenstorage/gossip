@@ -2,12 +2,13 @@ package proto
 
 import (
 	"fmt"
-	"github.com/libopenstorage/gossip/types"
 	"math/rand"
 	"runtime"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/libopenstorage/gossip/types"
 )
 
 const (
@@ -235,7 +236,7 @@ func TestGossipStoreUpdateData(t *testing.T) {
 	diff = make(types.NodeInfoMap)
 	nodeLen := 5
 	for i := 0; i < nodeLen; i++ {
-		g.AddNode(types.NodeId(strconv.Itoa(i)), types.NODE_STATUS_UP, true)
+		g.AddNode(types.NodeId(strconv.Itoa(i)), types.NODE_STATUS_UP, true, "")
 	}
 	keyList := []types.StoreKey{"key1", "key2", "key3", "key4", "key5"}
 	for _, key := range keyList {
