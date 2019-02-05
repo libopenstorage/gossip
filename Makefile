@@ -26,4 +26,11 @@ dep:
 all: test
 
 test:
-	cd proto && go test -v --timeout 1h
+	for pkg in $(PKGS); \
+	do \
+		go test --timeout 1h -v -tags unittest -coverprofile=profile.out -covermode=atomic $(BUILD_OPTIONS) $${pkg} || exit 1; \
+		if [ -f profile.out ]; then \
+			cat profile.out >> coverage.txt; \
+			rm profile.out; \
+		fi; \
+	done
