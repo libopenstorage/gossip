@@ -82,7 +82,8 @@ func isNodeInQuorum(
 				upNodes++
 
 				// update the total no. of up nodes in an active domain
-				if nodeInfo.FailureDomain == activeFailureDomain {
+				if len(activeFailureDomain) > 0 &&
+					(nodeInfo.FailureDomain == activeFailureDomain) {
 					upNodesInActiveDomain++
 				}
 			}

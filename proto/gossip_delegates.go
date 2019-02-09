@@ -10,8 +10,13 @@ import (
 	"github.com/hashicorp/memberlist"
 	"github.com/sirupsen/logrus"
 
+	"github.com/libopenstorage/gossip/pkg/probation"
 	"github.com/libopenstorage/gossip/proto/state"
 	"github.com/libopenstorage/gossip/types"
+)
+
+const (
+	suspectNodeDownTimeout = 1 * time.Minute
 )
 
 type GossipDelegate struct {
@@ -24,11 +29,13 @@ type GossipDelegate struct {
 	// channel to receive state change events
 	stateEvent chan types.StateEvent
 	// current State object
-	currentState state.State
+	currentState     state.State
+	currentStateLock sync.Mutex
 	// quorum timeout to change the quorum status of a node
-	quorumTimeout      time.Duration
-	timeoutVersion     uint64
-	timeoutVersionLock sync.Mutex
+	quorumTimeout            time.Duration
+	timeoutVersion           uint64
+	timeoutVersionLock       sync.Mutex
+	nodeDownProbationManager probation.Probation
 }
 
 func (gd *GossipDelegate) InitGossipDelegate(
@@ -49,6 +56,11 @@ func (gd *GossipDelegate) InitGossipDelegate(
 		clusterId,
 	)
 	gd.quorumTimeout = quorumTimeout
+	gd.nodeDownProbationManager = probation.NewProbationManager(
+		"node-suspected-down-probation-manager",
+		suspectNodeDownTimeout,
+		gd.probationExpiredOnSuspectedDownNode,
+	)
 }
 
 func (gd *GossipDelegate) InitCurrentState(clusterSize uint) {
@@ -201,12 +213,22 @@ func (gd *GossipDelegate) NotifyLeave(node *memberlist.Node) {
 	if nodeName == gd.nodeId {
 		gd.triggerStateEvent(types.SELF_LEAVE)
 	} else {
-		err := gd.UpdateNodeStatus(types.NodeId(nodeName), types.NODE_STATUS_DOWN)
+		err := gd.UpdateNodeStatus(types.NodeId(nodeName), types.NODE_STATUS_SUSPECT_DOWN)
 		if err != nil {
 			logrus.Infof("gossip: Could not update status on NotifyLeave : %v", err.Error())
 			return
 		}
+		logrus.Infof("gossip: Node %v is suspected offline", nodeName)
 		gd.triggerStateEvent(types.NODE_LEAVE)
+		// Add the node to probation list
+		if ok := gd.nodeDownProbationManager.Exists(gd.nodeNameToProbationID(nodeName)); ok {
+			logrus.Infof("gossip: Node %v already exists in probation list. ", nodeName)
+		} else {
+			if err := gd.nodeDownProbationManager.Add(gd.nodeNameToProbationID(nodeName), nil, false); err != nil {
+				logrus.Warnf("gossip: Unable to add suspected down node %v to probation list: %v", nodeName, err)
+			}
+			logrus.Infof("gossip: Node %v added to probation list", nodeName)
+		}
 	}
 
 	gd.updateGossipTs()
@@ -256,8 +278,40 @@ func (gd *GossipDelegate) NotifyAlive(node *memberlist.Node) error {
 	if err == nil && diffNode.Status != types.NODE_STATUS_UP {
 		gd.UpdateNodeStatus(types.NodeId(nodeName), types.NODE_STATUS_UP)
 		gd.triggerStateEvent(types.NODE_ALIVE)
+		if diffNode.Status == types.NODE_STATUS_SUSPECT_DOWN {
+			// Remove the node from probation list
+			logrus.Infof("gossip: Node %v is no more suspected as offline", nodeName)
+			if err := gd.nodeDownProbationManager.Remove(gd.nodeNameToProbationID(nodeName)); err != nil {
+				logrus.Warnf("gossip: Unable to remove suspected down node %v from probation list: %v", nodeName, err)
+			}
+		}
 	} // else if err != nil -> A new node sending us data. We do not add node unless it is added
 	// in our local map externally
+	return nil
+}
+
+func (gd *GossipDelegate) probationExpiredOnSuspectedDownNode(probationID string, nodeData interface{}) error {
+	// Node is suspected to be down for more than the probation timeout
+	// Update the node status to Offline
+	nodeName := gd.probationIDToNodeName(probationID)
+	logrus.Infof("gossip: probation time expired for suspected offline node %v ", nodeName)
+	selfStatus := gd.GetSelfStatus()
+	logrus.Infof("gossip: probation selfStatus: ", selfStatus)
+	if selfStatus == types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
+		// We are probably out of quorum
+		// Wait again before we mark this node down
+		logrus.Infof("gossip: we are suspected not in quorum, adding suspected offline node %v back to probation list", nodeName)
+		if err := gd.nodeDownProbationManager.Add(probationID, nil, true); err != nil {
+			logrus.Warnf("gossip: Unable to add suspected down node %v from probation list: %v", nodeName, err)
+		}
+		return nil
+	}
+	// For all other self status: Not In Quorum / Up
+	// update the node status to down
+	logrus.Infof("gossip: Updating the node status of %v to offline", nodeName)
+	err := gd.UpdateNodeStatus(types.NodeId(nodeName), types.NODE_STATUS_DOWN)
+	logrus.Infof("gossip: UpdateNodeStatus returned an error: %v", err)
+	gd.nodeDownProbationManager.Remove(probationID)
 	return nil
 }
 
@@ -327,4 +381,12 @@ func (gd *GossipDelegate) handleStateEvents() {
 		}
 		gd.UpdateSelfStatus(gd.currentState.NodeStatus())
 	}
+}
+
+func (gd *GossipDelegate) nodeNameToProbationID(nodeName string) string {
+	return "gossip-" + nodeName
+}
+
+func (gd *GossipDelegate) probationIDToNodeName(probationID string) string {
+	return strings.TrimPrefix(probationID, "gossip-")
 }
