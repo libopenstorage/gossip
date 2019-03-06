@@ -1,12 +1,13 @@
 package proto
 
 import (
-	"github.com/libopenstorage/gossip/types"
 	"math/rand"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/libopenstorage/gossip/types"
 )
 
 const (
@@ -15,7 +16,15 @@ const (
 
 // New returns an initialized Gossip node
 // which identifies itself with the given ip
-func newGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string, version, clusterId string) (*GossiperImpl, error) {
+func newGossiperImpl(
+	ip string,
+	selfNodeId types.NodeId,
+	selfFailureDomain string,
+	knownNodesMap map[string]string,
+	version, clusterId string,
+	quorumProvider types.QuorumProvider,
+	activeMap types.MetroDomainsActiveMap,
+) (*GossiperImpl, error) {
 	g := new(GossiperImpl)
 	gi := types.GossipIntervals{
 		GossipInterval:   types.DEFAULT_GOSSIP_INTERVAL,
@@ -24,9 +33,22 @@ func newGossiperImpl(ip string, selfNodeId types.NodeId, knownIps []string, vers
 		ProbeTimeout:     types.DEFAULT_PROBE_TIMEOUT,
 		QuorumTimeout:    TestQuorumTimeout,
 	}
-	g.Init(ip, selfNodeId, 1, gi, version, clusterId)
+	g.Init(ip, selfNodeId, 1, gi, version, clusterId, selfFailureDomain)
 	g.selfCorrect = false
-	err := g.Start(knownIps)
+	startConfig := types.GossipStartConfiguration{
+		Nodes: make(map[types.NodeId]types.GossipNodeConfiguration),
+	}
+	i := 0
+	for nodeIp, metroDomain := range knownNodesMap {
+		startConfig.Nodes[types.NodeId(strconv.FormatInt(int64(i), 10))] = types.GossipNodeConfiguration{
+			KnownUrl:    nodeIp,
+			MetroDomain: metroDomain,
+		}
+		i++
+	}
+	startConfig.ActiveMap = activeMap
+	startConfig.QuorumProviderType = quorumProvider
+	err := g.Start(startConfig)
 	return g, err
 }
 
@@ -36,7 +58,11 @@ func NewGossiperImpl(
 	knownIps []string,
 	version string,
 ) (*GossiperImpl, error) {
-	return newGossiperImpl(ip, selfNodeId, knownIps, version, DEFAULT_CLUSTER_ID)
+	knownNodesMap := make(map[string]string)
+	for _, knownIp := range knownIps {
+		knownNodesMap[knownIp] = ""
+	}
+	return newGossiperImpl(ip, selfNodeId, "", knownNodesMap, version, DEFAULT_CLUSTER_ID, types.QUORUM_PROVIDER_DEFAULT, nil)
 }
 
 func NewGossiperImplWithClusterId(
@@ -46,14 +72,18 @@ func NewGossiperImplWithClusterId(
 	version,
 	clusterId string,
 ) (*GossiperImpl, error) {
-	return newGossiperImpl(ip, selfNodeId, knownIps, version, clusterId)
+	knownNodesMap := make(map[string]string)
+	for _, knownIp := range knownIps {
+		knownNodesMap[knownIp] = ""
+	}
+	return newGossiperImpl(ip, selfNodeId, "", knownNodesMap, version, clusterId, types.QUORUM_PROVIDER_DEFAULT, nil)
 }
 
 func getNodeUpdateMap(nodesIp []string) map[types.NodeId]types.NodeUpdate {
 	peers := make(map[types.NodeId]types.NodeUpdate)
 	for i, ip := range nodesIp {
 		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
-		peers[nodeId] = types.NodeUpdate{ip, true}
+		peers[nodeId] = types.NodeUpdate{ip, true, ""}
 	}
 	return peers
 }
@@ -380,9 +410,9 @@ func TestGossiperGroupingOfNodesWithSameVersion(t *testing.T) {
 	for i, ip := range nodes {
 		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
 		if i != 0 && i%2 == 0 {
-			peers2[nodeId] = types.NodeUpdate{ip, true}
+			peers2[nodeId] = types.NodeUpdate{ip, true, ""}
 		} else {
-			peers1[nodeId] = types.NodeUpdate{ip, true}
+			peers1[nodeId] = types.NodeUpdate{ip, true, ""}
 		}
 	}
 
@@ -721,7 +751,7 @@ func TestGossiperAddNodeExternally(t *testing.T) {
 	}
 
 	nodes = append(nodes, "127.0.0.3:9160")
-	peers[types.NodeId("2")] = types.NodeUpdate{nodes[2], true}
+	peers[types.NodeId("2")] = types.NodeUpdate{nodes[2], true, ""}
 
 	for _, g := range gossipers {
 		g.UpdateCluster(peers)
@@ -938,9 +968,9 @@ func TestGossiperNodesWithDifferentClusterId(t *testing.T) {
 	for i, ip := range nodes {
 		nodeId := types.NodeId(strconv.FormatInt(int64(i), 10))
 		if i == 2 || i == 4 {
-			peers2[nodeId] = types.NodeUpdate{ip, true}
+			peers2[nodeId] = types.NodeUpdate{ip, true, ""}
 		} else {
-			peers1[nodeId] = types.NodeUpdate{ip, true}
+			peers1[nodeId] = types.NodeUpdate{ip, true, ""}
 		}
 	}
 

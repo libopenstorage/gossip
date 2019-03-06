@@ -1,10 +1,11 @@
 package proto
 
 import (
-	"github.com/libopenstorage/gossip/types"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/libopenstorage/gossip/types"
 )
 
 const DEFAULT_CLUSTER_ID = "test-cluster"
@@ -42,7 +43,7 @@ func TestQuorumAllNodesUpOneByOne(t *testing.T) {
 	node0 := types.NodeId("0")
 	g0, _ := startNode(t, nodes[0], node0, []string{},
 		map[types.NodeId]types.NodeUpdate{
-			node0: types.NodeUpdate{nodes[0], true}})
+			node0: types.NodeUpdate{nodes[0], true, ""}})
 
 	time.Sleep(g0.GossipInterval())
 	status := g0.GetSelfStatus()
@@ -54,8 +55,8 @@ func TestQuorumAllNodesUpOneByOne(t *testing.T) {
 	// Start Node1 with cluster size 2
 	node1 := types.NodeId("1")
 	peers := map[types.NodeId]types.NodeUpdate{
-		node0: types.NodeUpdate{nodes[0], true},
-		node1: types.NodeUpdate{nodes[1], true}}
+		node0: types.NodeUpdate{nodes[0], true, ""},
+		node1: types.NodeUpdate{nodes[1], true, ""}}
 	g1, _ := startNode(t, nodes[1], node1, []string{nodes[0]}, peers)
 	g0.UpdateCluster(peers)
 
@@ -87,7 +88,7 @@ func TestQuorumNodeLoosesQuorumAndGainsBack(t *testing.T) {
 	// Start Node 0
 	g0, _ := startNode(t, nodes[0], node0, []string{},
 		map[types.NodeId]types.NodeUpdate{
-			node0: types.NodeUpdate{nodes[0], true}})
+			node0: types.NodeUpdate{nodes[0], true, ""}})
 
 	time.Sleep(g0.GossipInterval())
 	selfStatus := g0.GetSelfStatus()
@@ -99,8 +100,8 @@ func TestQuorumNodeLoosesQuorumAndGainsBack(t *testing.T) {
 	// Simulate new node was added by updating the cluster size, but the new node is not talking to node0
 	// Node 0 should loose quorom 1/2
 	g0.UpdateCluster(map[types.NodeId]types.NodeUpdate{
-		node0: types.NodeUpdate{nodes[0], true},
-		node1: types.NodeUpdate{nodes[1], true}})
+		node0: types.NodeUpdate{nodes[0], true, ""},
+		node1: types.NodeUpdate{nodes[1], true, ""}})
 	time.Sleep(g0.GossipInterval() * time.Duration(len(nodes)+1))
 	selfStatus = g0.GetSelfStatus()
 	if selfStatus != types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
@@ -120,8 +121,8 @@ func TestQuorumNodeLoosesQuorumAndGainsBack(t *testing.T) {
 	// Lets start the actual Node 1
 	g1, _ := startNode(t, nodes[1], node1, []string{nodes[0]},
 		map[types.NodeId]types.NodeUpdate{
-			node0: types.NodeUpdate{nodes[0], true},
-			node1: types.NodeUpdate{nodes[1], true}})
+			node0: types.NodeUpdate{nodes[0], true, ""},
+			node1: types.NodeUpdate{nodes[1], true, ""}})
 
 	// Sleep so that nodes gossip
 	time.Sleep(g1.GossipInterval() * time.Duration(len(nodes)+1))
@@ -150,7 +151,7 @@ func TestQuorumTwoNodesLooseConnectivity(t *testing.T) {
 	node1 := types.NodeId("1")
 	g0, _ := startNode(t, nodes[0], node0, []string{},
 		map[types.NodeId]types.NodeUpdate{
-			node0: types.NodeUpdate{nodes[0], true}})
+			node0: types.NodeUpdate{nodes[0], true, ""}})
 
 	time.Sleep(g0.GossipInterval())
 	if g0.GetSelfStatus() != types.NODE_STATUS_UP {
@@ -160,8 +161,8 @@ func TestQuorumTwoNodesLooseConnectivity(t *testing.T) {
 	// Simulate new node was added by updating the cluster size, but the new node is not talking to node0
 	// Node 0 should loose quorom 1/2
 	g0.UpdateCluster(map[types.NodeId]types.NodeUpdate{
-		node0: types.NodeUpdate{nodes[0], true},
-		node1: types.NodeUpdate{nodes[1], true}})
+		node0: types.NodeUpdate{nodes[0], true, ""},
+		node1: types.NodeUpdate{nodes[1], true, ""}})
 	time.Sleep(g0.GossipInterval() * time.Duration(len(nodes)+1))
 	if g0.GetSelfStatus() != types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
 		t.Error("Expected Node 0 to have status: ", types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM)
@@ -171,8 +172,8 @@ func TestQuorumTwoNodesLooseConnectivity(t *testing.T) {
 	// to simulate NO connectivity between node 0 and node 1
 	g1, _ := startNode(t, nodes[1], node1, []string{},
 		map[types.NodeId]types.NodeUpdate{
-			node0: types.NodeUpdate{nodes[0], true},
-			node1: types.NodeUpdate{nodes[1], true}})
+			node0: types.NodeUpdate{nodes[0], true, ""},
+			node1: types.NodeUpdate{nodes[1], true, ""}})
 
 	// For node 0 the status will change from UP_WAITING_QUORUM to WAITING_QUORUM after
 	// the quorum timeout
@@ -222,8 +223,8 @@ func TestQuorumOneNodeIsolated(t *testing.T) {
 	// Simulate isolation by stopping gossiper for node 1 and starting it back,
 	// but by not providing peer IPs and setting cluster size to 3.
 	gossipers[1].Stop(time.Duration(10) * time.Second)
-	gossipers[1].InitStore(types.NodeId("1"), "v1", types.NODE_STATUS_NOT_IN_QUORUM, DEFAULT_CLUSTER_ID)
-	gossipers[1].Start([]string{})
+	gossipers[1].InitStore(types.NodeId("1"), "v1", types.NODE_STATUS_NOT_IN_QUORUM, DEFAULT_CLUSTER_ID, "")
+	gossipers[1].Start(types.GossipStartConfiguration{})
 
 	// Lets sleep so that the nodes gossip and update their quorum
 	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL * time.Duration(len(nodes)+1))
@@ -260,7 +261,7 @@ func TestQuorumNetworkPartition(t *testing.T) {
 		g, _ = startNode(t, nodes[i], nodeId,
 			[]string{nodes[0], nodes[1], nodes[2]},
 			map[types.NodeId]types.NodeUpdate{
-				nodeId: types.NodeUpdate{nodes[i], true}})
+				nodeId: types.NodeUpdate{nodes[i], true, ""}})
 		gossipers = append(gossipers, g)
 	}
 	// Parition 2
@@ -269,7 +270,7 @@ func TestQuorumNetworkPartition(t *testing.T) {
 		var g *GossiperImpl
 		g, _ = startNode(t, nodes[i], nodeId, []string{nodes[3], nodes[4]},
 			map[types.NodeId]types.NodeUpdate{
-				nodeId: types.NodeUpdate{nodes[i], true}})
+				nodeId: types.NodeUpdate{nodes[i], true, ""}})
 		gossipers = append(gossipers, g)
 	}
 	// Let the nodes gossip
@@ -329,7 +330,7 @@ func TestQuorumEventHandling(t *testing.T) {
 		var g *GossiperImpl
 		g, _ = startNode(t, nodes[i], nodeId, []string{nodes[0]},
 			map[types.NodeId]types.NodeUpdate{
-				nodeId: types.NodeUpdate{nodes[0], true}})
+				nodeId: types.NodeUpdate{nodes[0], true, ""}})
 		gossipers = append(gossipers, g)
 	}
 
@@ -369,7 +370,13 @@ func TestQuorumEventHandling(t *testing.T) {
 	}
 
 	// Start Node 2
-	gossipers[2].Start([]string{nodes[0]})
+	startConfig := types.GossipStartConfiguration{
+		Nodes: make(map[types.NodeId]types.GossipNodeConfiguration),
+	}
+	startConfig.Nodes[types.NodeId("0")] = types.GossipNodeConfiguration{
+		KnownUrl: nodes[0],
+	}
+	gossipers[2].Start(startConfig)
 	gossipers[2].UpdateCluster(peers)
 
 	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL)
@@ -390,7 +397,7 @@ func TestQuorumEventHandling(t *testing.T) {
 	}
 
 	// Start Node 1
-	gossipers[1].Start([]string{nodes[0]})
+	gossipers[1].Start(startConfig)
 	gossipers[1].UpdateCluster(peers)
 
 	time.Sleep(time.Duration(2) * types.DEFAULT_GOSSIP_INTERVAL)
@@ -467,7 +474,7 @@ func TestQuorumAddNodes(t *testing.T) {
 	node0Ip := "127.0.0.1:9923"
 	node0 := types.NodeId("0")
 	peers := make(map[types.NodeId]types.NodeUpdate)
-	peers[node0] = types.NodeUpdate{node0Ip, true}
+	peers[node0] = types.NodeUpdate{node0Ip, true, ""}
 	g0, _ := startNode(t, node0Ip, node0, []string{}, peers)
 
 	// Lets sleep so that the nodes gossip and update their quorum
@@ -481,7 +488,7 @@ func TestQuorumAddNodes(t *testing.T) {
 	// Add a new node
 	node1 := types.NodeId("1")
 	node1Ip := "127.0.0.2:9924"
-	peers[node1] = types.NodeUpdate{node1Ip, true}
+	peers[node1] = types.NodeUpdate{node1Ip, true, ""}
 	g0.UpdateCluster(peers)
 
 	time.Sleep(types.DEFAULT_GOSSIP_INTERVAL)
@@ -546,7 +553,7 @@ func TestNonQuorumMembersAddRemove(t *testing.T) {
 	for i, node := range newNodes {
 		quorumMember := i != 0
 		nodeId := types.NodeId(strconv.Itoa(len(peers)))
-		peers[nodeId] = types.NodeUpdate{node, quorumMember}
+		peers[nodeId] = types.NodeUpdate{node, quorumMember, ""}
 		for _, g := range gossipers {
 			g.UpdateCluster(peers)
 		}

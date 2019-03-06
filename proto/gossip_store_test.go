@@ -2,12 +2,13 @@ package proto
 
 import (
 	"fmt"
-	"github.com/libopenstorage/gossip/types"
 	"math/rand"
 	"runtime"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/libopenstorage/gossip/types"
 )
 
 const (
@@ -59,7 +60,7 @@ func fillUpNodeInfoMap(nodes types.NodeInfoMap, key types.StoreKey,
 func TestGossipStoreUpdateSelf(t *testing.T) {
 	printTestInfo()
 	// emtpy store
-	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID)
+	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID, "")
 
 	id := g.NodeId()
 	if id != ID {
@@ -110,7 +111,7 @@ func TestGossipStoreGetStoreKeyValue(t *testing.T) {
 
 	// Case: emtpy store
 	// Case: key absent
-	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID)
+	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID, "")
 
 	keyList := []types.StoreKey{"key1", "key2"}
 
@@ -154,7 +155,7 @@ func TestGossipStoreGetStoreKeyValue(t *testing.T) {
 func TestGossipStoreMetaInfo(t *testing.T) {
 	printTestInfo()
 
-	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID)
+	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID, "")
 
 	m := g.MetaInfo()
 	if m.Id != ID {
@@ -221,7 +222,7 @@ func verifyNodeInfoMapEquality(store types.NodeInfoMap, diff types.NodeInfoMap,
 func TestGossipStoreUpdateData(t *testing.T) {
 	printTestInfo()
 
-	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID)
+	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID, "")
 	time.Sleep(1 * time.Second)
 	// empty store and empty diff
 	diff := types.NodeInfoMap{}
@@ -235,7 +236,7 @@ func TestGossipStoreUpdateData(t *testing.T) {
 	diff = make(types.NodeInfoMap)
 	nodeLen := 5
 	for i := 0; i < nodeLen; i++ {
-		g.AddNode(types.NodeId(strconv.Itoa(i)), types.NODE_STATUS_UP, true)
+		g.AddNode(types.NodeId(strconv.Itoa(i)), types.NODE_STATUS_UP, true, "")
 	}
 	keyList := []types.StoreKey{"key1", "key2", "key3", "key4", "key5"}
 	for _, key := range keyList {
@@ -301,7 +302,7 @@ func TestGossipStoreUpdateData(t *testing.T) {
 func TestGossipStoreGetStoreKeys(t *testing.T) {
 	printTestInfo()
 
-	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID)
+	g := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID, "")
 
 	keys := g.GetStoreKeys()
 	if len(keys) != 0 {
@@ -337,8 +338,8 @@ func TestGossipStoreGetStoreKeys(t *testing.T) {
 func TestGossipStoreBlackBoxTests(t *testing.T) {
 	printTestInfo()
 
-	g1 := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID)
-	g2 := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID)
+	g1 := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID, "")
+	g2 := NewGossipStore(ID, types.DEFAULT_GOSSIP_VERSION, DEFAULT_CLUSTER_ID, "")
 
 	nodeLen := 3
 	keyList := []types.StoreKey{"key1", "key2", "key3", "key5"}
