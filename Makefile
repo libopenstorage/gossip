@@ -34,3 +34,16 @@ test:
 			rm profile.out; \
 		fi; \
 	done
+
+docker-test:
+	docker run \
+	--privileged \
+        --net=host \
+	openstorage/osd-gossip \
+		make test
+
+docker-build-osd-gossip:
+	docker build -t openstorage/osd-gossip -f Dockerfile.osd-gossip .
+
+push-docker-images: docker-build-osd-gossip
+	docker push openstorage/osd-gossip

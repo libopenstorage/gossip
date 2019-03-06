@@ -2,17 +2,17 @@ sudo: required
 dist: trusty
 language: go
 go:
-  - 1.6
+  - 1.10.4
 before_install:
   - sudo apt-get update -yq
 script:
-  - make test
+  - make docker-test
 notifications:
   email:
     recipients:
       - aditya@portworx.com
       - eng@portworx.com
-    on_success: always
+    on_success: change
     on_failure: always
 after_success:
-- bash <(curl -s https://codecov.io/bash) 
+- bash <(curl -s https://codecov.io/bash)
