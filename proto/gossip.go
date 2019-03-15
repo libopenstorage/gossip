@@ -190,10 +190,6 @@ func (g *GossiperImpl) Ping(peerNode types.NodeId, addr string) (time.Duration, 
 	netAddr := &net.UDPAddr{net.ParseIP(ipPort[0]), int(port), ""}
 
 	pingRetries := 3
-	var (
-		pingSuccessCount, pingFailureCount int
-		lastPingErr                        error
-	)
 
 	memberlistNodeName := string(peerNode) + types.GOSSIP_VERSION_2
 
@@ -204,18 +200,12 @@ func (g *GossiperImpl) Ping(peerNode types.NodeId, addr string) (time.Duration, 
 
 	for i := 0; i < pingRetries; i++ {
 		pingDuration, pingErr = g.mlist.Ping(memberlistNodeName, netAddr)
-		if pingErr != nil {
-			pingFailureCount++
-			lastPingErr = pingErr
-		} else {
-			pingSuccessCount++
+		if pingErr == nil {
+			return pingDuration, nil
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	if pingSuccessCount > pingFailureCount {
-		return pingDuration, nil
-	}
-	return pingDuration, lastPingErr
+	return pingDuration, pingErr
 }
 
 func (g *GossiperImpl) GossipInterval() time.Duration {

@@ -265,8 +265,7 @@ func (gd *GossipDelegate) setNodeAsSuspectOffline(nodeName string) {
 }
 
 func (gd *GossipDelegate) setNodeOffline(nodeName string) {
-	err := gd.UpdateNodeStatus(types.NodeId(nodeName), types.NODE_STATUS_DOWN)
-	if err != nil {
+	if err := gd.UpdateNodeStatus(types.NodeId(nodeName), types.NODE_STATUS_DOWN); err != nil {
 		logrus.Infof("gossip: Could not update status on NotifyLeave : %v", err.Error())
 		return
 	}
@@ -334,8 +333,8 @@ func (gd *GossipDelegate) probationExpiredOnSuspectedDownNode(probationID string
 	nodeName := gd.probationIDToNodeName(probationID)
 	logrus.Infof("gossip: probation time expired for suspected offline node %v ", nodeName)
 	selfStatus := gd.GetSelfStatus()
-	if selfStatus == types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM {
-		// We are probably out of quorum
+	if selfStatus != types.NODE_STATUS_UP {
+		// We are not in up and probably out of quorum
 		// Wait again before we mark this node down
 		logrus.Infof("gossip: we are suspected not in quorum, adding suspected offline node %v back to probation list", nodeName)
 		if err := gd.nodeDownProbationManager.Add(probationID, nil, true); err != nil {
@@ -343,7 +342,7 @@ func (gd *GossipDelegate) probationExpiredOnSuspectedDownNode(probationID string
 		}
 		return nil
 	}
-	// For all other self status: Not In Quorum / Up
+	// For all other self status: Up
 	// update the node status to down
 	gd.UpdateNodeStatus(types.NodeId(nodeName), types.NODE_STATUS_DOWN)
 	gd.nodeDownProbationManager.Remove(probationID)
@@ -423,9 +422,10 @@ func (gd *GossipDelegate) probationIDToNodeName(probationID string) string {
 
 // isNodeSuspect returns a boolean indicating whether a peer node should be put
 // in suspected Offline state. For the given nodeId, it finds out all its peers from
-// the same failure domain. It then pings all these nodes, and if even one of the pings
-// fails it assumes that the failure domain itself could be down and marks the input
-// node as suspected offline
+// the same metro domain. If even one ping to such peer node succeeds it assumes that
+// only the suspected node is down and the whole metro domain is still operational.
+// If all the pings to peer nodes in that metro domain fail we put the node in
+// suspect down state
 func (gd *GossipDelegate) isNodeSuspect(nodeId types.NodeId) bool {
 	nodeInfo, err := gd.GetLocalNodeInfo(nodeId)
 	if err != nil {
@@ -451,12 +451,17 @@ func (gd *GossipDelegate) isNodeSuspect(nodeId types.NodeId) bool {
 		logrus.Infof("gossip: pinging peer node (%v: %v) for suspect %v", fdNodeId, nodeInfo.Addr, nodeId)
 		_, pingErr := gd.ping(fdNodeId, nodeInfo.Addr)
 		if pingErr != nil {
-			// Ping to a node in the same failure domain as the suspected node
-			// failed. Put the node in SUSPECT_OFFLINE state
+			// Ping to a node in the same metro domain as the suspected node
+			// failed. Try another node
 			logrus.Infof("gossip: ping to node (%v: %v) in failure"+
 				" domain %v failed: %v", fdNodeId, nodeInfo.Addr, nodeInfo.MetroDomain, pingErr)
-			return true
+			continue
+		} else {
+			// Ping to a node in the same metro domain succeeded
+			// The metro domain is online and only this node is offline
+			return false
 		}
 	}
-	return false
+	// All the pings failed. The metro domain is down. Put the node in suspect before marking it down.
+	return true
 }

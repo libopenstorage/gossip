@@ -3,8 +3,8 @@ package state
 import (
 	"sync"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/libopenstorage/gossip/types"
+	"github.com/sirupsen/logrus"
 )
 
 // failureDomainsQuorum is an implementation of Quorum that incorporates
