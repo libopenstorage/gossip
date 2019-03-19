@@ -32,9 +32,9 @@ type StoreMap map[StoreKey]interface{}
 // quorum of a cluster
 type QuorumProvider uint8
 
-// MetroDomainsActiveMap is a map of metro domain to a boolean value
+// ClusterDomainsActiveMap is a map of cluster domain to a boolean value
 // indicating whether that domain is active or inactive
-type MetroDomainsActiveMap map[string]bool
+type ClusterDomainsActiveMap map[string]bool
 
 // Constant Definitions
 
@@ -65,7 +65,7 @@ const (
 	NODE_LEAVE
 	UPDATE_CLUSTER_SIZE
 	TIMEOUT
-	UPDATE_METRO_DOMAINS_ACTIVE_MAP
+	UPDATE_CLUSTER_DOMAINS_ACTIVE_MAP
 )
 
 const (
@@ -79,8 +79,8 @@ type NodeUpdate struct {
 	Addr string
 	// QuorumMember is true if node participates in quorum decisions
 	QuorumMember bool
-	// MetroDomain of the node
-	MetroDomain string
+	// ClusterDomain of the node
+	ClusterDomain string
 }
 
 // NodeMetaInfo object is the node metadata information that gets stored in
@@ -116,8 +116,8 @@ type NodeInfo struct {
 	Value StoreMap
 	// QuorumMember indicates if this node participates in quorum calculations
 	QuorumMember bool
-	// MetroDomain indicates the metro domain in which this node lies
-	MetroDomain string
+	// ClusterDomain indicates the cluster domain in which this node lies
+	ClusterDomain string
 	// Addr is the connection address for this node
 	Addr string
 }
@@ -159,8 +159,8 @@ type GossipIntervals struct {
 type GossipNodeConfiguration struct {
 	// KnownUrl is the ip of this peer node
 	KnownUrl string
-	// MetroDomain is the failure domain of this peer node
-	MetroDomain string
+	// ClusterDomain is the failure domain of this peer node
+	ClusterDomain string
 }
 
 // GossipStartConfiguration object provides the configuration with which gossip should start.
@@ -169,7 +169,7 @@ type GossipStartConfiguration struct {
 	Nodes map[NodeId]GossipNodeConfiguration
 	// ActiveMap is a map of failure domains to a boolean indicating whether they
 	// are active or inactive
-	ActiveMap MetroDomainsActiveMap
+	ActiveMap ClusterDomainsActiveMap
 	// QuorumProviderType indicates which quorum calculation algorithm to use
 	QuorumProviderType QuorumProvider
 }

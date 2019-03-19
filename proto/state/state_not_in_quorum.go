@@ -67,7 +67,7 @@ func (niq *notInQuorum) UpdateClusterSize(
 	}
 }
 
-func (niq *notInQuorum) UpdateMetroDomainsActiveMap(
+func (niq *notInQuorum) UpdateClusterDomainsActiveMap(
 	localNodeInfoMap types.NodeInfoMap,
 ) (State, error) {
 	if !niq.quorumProvider.IsNodeInQuorum(localNodeInfoMap) {

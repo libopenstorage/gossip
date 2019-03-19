@@ -62,7 +62,7 @@ func (u *up) UpdateClusterSize(
 	}
 }
 
-func (u *up) UpdateMetroDomainsActiveMap(
+func (u *up) UpdateClusterDomainsActiveMap(
 	localNodeInfoMap types.NodeInfoMap,
 ) (State, error) {
 	if !u.quorumProvider.IsNodeInQuorum(localNodeInfoMap) {

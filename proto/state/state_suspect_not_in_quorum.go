@@ -64,7 +64,7 @@ func (siq *suspectNotInQuorum) UpdateClusterSize(
 	}
 }
 
-func (siq *suspectNotInQuorum) UpdateMetroDomainsActiveMap(
+func (siq *suspectNotInQuorum) UpdateClusterDomainsActiveMap(
 	localNodeInfoMap types.NodeInfoMap,
 ) (State, error) {
 	if !siq.quorumProvider.IsNodeInQuorum(localNodeInfoMap) {

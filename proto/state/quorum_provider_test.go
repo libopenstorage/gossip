@@ -40,8 +40,8 @@ func TestQuorumProviderAllNodesUp(t *testing.T) {
 	for i, _ := range nodes {
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
-		q.UpdateMetroDomainsActiveMap(
-			types.MetroDomainsActiveMap(
+		q.UpdateClusterDomainsActiveMap(
+			types.ClusterDomainsActiveMap(
 				map[string]bool{
 					zones[0]: true,
 					zones[1]: true,
@@ -61,8 +61,8 @@ func TestQuorumProviderOneZoneDeactivated(t *testing.T) {
 	for i, _ := range nodes {
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
-		q.UpdateMetroDomainsActiveMap(
-			types.MetroDomainsActiveMap(
+		q.UpdateClusterDomainsActiveMap(
+			types.ClusterDomainsActiveMap(
 				map[string]bool{
 					zones[0]: false,
 					zones[1]: true,
@@ -86,8 +86,8 @@ func TestQuorumProviderTwoZonesDeactivated(t *testing.T) {
 	for i, _ := range nodes {
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
-		q.UpdateMetroDomainsActiveMap(
-			types.MetroDomainsActiveMap(
+		q.UpdateClusterDomainsActiveMap(
+			types.ClusterDomainsActiveMap(
 				map[string]bool{
 					zones[0]: false,
 					zones[1]: false,
@@ -121,8 +121,8 @@ func TestQuorumProviderOneZoneDeactivatedOneNodeOffline(t *testing.T) {
 		}
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
-		q.UpdateMetroDomainsActiveMap(
-			types.MetroDomainsActiveMap(
+		q.UpdateClusterDomainsActiveMap(
+			types.ClusterDomainsActiveMap(
 				map[string]bool{
 					zones[0]: true,
 					zones[1]: true,
@@ -159,8 +159,8 @@ func TestQuorumProviderOneZoneDeactivatedQuorumNodesOffline(t *testing.T) {
 		}
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
-		q.UpdateMetroDomainsActiveMap(
-			types.MetroDomainsActiveMap(
+		q.UpdateClusterDomainsActiveMap(
+			types.ClusterDomainsActiveMap(
 				map[string]bool{
 					zones[0]: true,
 					zones[1]: true,
@@ -182,8 +182,8 @@ func TestQuorumProviderOneZoneDeactivatedWithNonQuorumMembers(t *testing.T) {
 	for i, _ := range nodes {
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
-		q.UpdateMetroDomainsActiveMap(
-			types.MetroDomainsActiveMap(
+		q.UpdateClusterDomainsActiveMap(
+			types.ClusterDomainsActiveMap(
 				map[string]bool{
 					zones[0]: false,
 					zones[1]: true,
@@ -217,8 +217,8 @@ func TestQuorumProviderOneZoneDeactivatedOneNodeOfflineWithNonQuorumMembers(t *t
 
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
-		q.UpdateMetroDomainsActiveMap(
-			types.MetroDomainsActiveMap(
+		q.UpdateClusterDomainsActiveMap(
+			types.ClusterDomainsActiveMap(
 				map[string]bool{
 					zones[0]: false,
 					zones[1]: true,

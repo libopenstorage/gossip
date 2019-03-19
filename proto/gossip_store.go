@@ -40,9 +40,9 @@ type GossipStoreImpl struct {
 	lostQuorumTs time.Time
 }
 
-func NewGossipStore(id types.NodeId, version, clusterId, selfMetroDomain string) *GossipStoreImpl {
+func NewGossipStore(id types.NodeId, version, clusterId, selfClusterDomain string) *GossipStoreImpl {
 	n := &GossipStoreImpl{}
-	n.InitStore(id, version, types.NODE_STATUS_NOT_IN_QUORUM, clusterId, selfMetroDomain)
+	n.InitStore(id, version, types.NODE_STATUS_NOT_IN_QUORUM, clusterId, selfClusterDomain)
 	n.selfCorrect = false
 	return n
 }
@@ -67,7 +67,7 @@ func (s *GossipStoreImpl) InitStore(
 	version string,
 	status types.NodeStatus,
 	clusterId string,
-	selfMetroDomain string,
+	selfClusterDomain string,
 ) {
 	s.nodeMap = make(types.NodeInfoMap)
 	s.id = id
@@ -75,12 +75,12 @@ func (s *GossipStoreImpl) InitStore(
 	s.GossipVersion = version
 	s.ClusterId = clusterId
 	nodeInfo := types.NodeInfo{
-		Id:           s.id,
-		GenNumber:    s.GenNumber,
-		Value:        make(types.StoreMap),
-		LastUpdateTs: time.Now(),
-		Status:       status,
-		MetroDomain:  selfMetroDomain,
+		Id:            s.id,
+		GenNumber:     s.GenNumber,
+		Value:         make(types.StoreMap),
+		LastUpdateTs:  time.Now(),
+		Status:        status,
+		ClusterDomain: selfClusterDomain,
 	}
 	s.nodeMap[s.id] = nodeInfo
 }
@@ -104,16 +104,16 @@ func (s *GossipStoreImpl) UpdateSelf(key types.StoreKey, val interface{}) {
 	s.nodeMap[s.id] = nodeInfo
 }
 
-func (s *GossipStoreImpl) updateSelfMetroDomain(selfMetroDomain string) bool {
+func (s *GossipStoreImpl) updateSelfClusterDomain(selfClusterDomain string) bool {
 	s.Lock()
 	defer s.Unlock()
 
 	nodeInfo, _ := s.nodeMap[s.id]
-	previousMetroDomain := nodeInfo.MetroDomain
+	previousClusterDomain := nodeInfo.ClusterDomain
 
 	// Update the failure domain only if there is a change
-	if previousMetroDomain != selfMetroDomain {
-		nodeInfo.MetroDomain = selfMetroDomain
+	if previousClusterDomain != selfClusterDomain {
+		nodeInfo.ClusterDomain = selfClusterDomain
 		nodeInfo.LastUpdateTs = time.Now()
 		s.nodeMap[s.id] = nodeInfo
 		return true
@@ -225,7 +225,7 @@ func (s *GossipStoreImpl) addNodeUnlocked(
 		nodeInfo.LastUpdateTs = time.Now()
 		nodeInfo.QuorumMember = quorumMember
 
-		nodeInfo.MetroDomain = failureDomain
+		nodeInfo.ClusterDomain = failureDomain
 		s.nodeMap[id] = nodeInfo
 		return
 	}
@@ -238,7 +238,7 @@ func (s *GossipStoreImpl) addNodeUnlocked(
 		Status:             status,
 		Value:              make(types.StoreMap),
 		QuorumMember:       quorumMember,
-		MetroDomain:        failureDomain,
+		ClusterDomain:      failureDomain,
 	}
 	logrus.Infof("gossip: Adding Node to gossip map: %v", id)
 }
@@ -345,7 +345,7 @@ func (s *GossipStoreImpl) updateCluster(
 	}
 	for _, nodeId := range addNodeIds {
 		update, _ := peers[nodeId]
-		s.addNodeUnlocked(nodeId, types.NODE_STATUS_DOWN, update.QuorumMember, update.MetroDomain)
+		s.addNodeUnlocked(nodeId, types.NODE_STATUS_DOWN, update.QuorumMember, update.ClusterDomain)
 	}
 
 	// Update quorum members
@@ -354,11 +354,11 @@ func (s *GossipStoreImpl) updateCluster(
 	for id, nodeInfo := range s.nodeMap {
 		if update, ok := peers[id]; ok {
 			nodeInfo.QuorumMember = update.QuorumMember
-			nodeInfo.MetroDomain = update.MetroDomain
+			nodeInfo.ClusterDomain = update.ClusterDomain
 			nodeInfo.Addr = update.Addr
 			s.nodeMap[id] = nodeInfo
 			// Update this node's entry in the failure domain map
-			s.updateMetroDomainsMap(update.MetroDomain, id)
+			s.updateClusterDomainsMap(update.ClusterDomain, id)
 		}
 		if nodeInfo.QuorumMember {
 			numQuorumMembers++
@@ -367,7 +367,7 @@ func (s *GossipStoreImpl) updateCluster(
 	return numQuorumMembers
 }
 
-func (s *GossipStoreImpl) updateMetroDomainsMap(failureDomain string, nodeId types.NodeId) {
+func (s *GossipStoreImpl) updateClusterDomainsMap(failureDomain string, nodeId types.NodeId) {
 	s.failureDomainsMapLock.Lock()
 	defer s.failureDomainsMapLock.Unlock()
 
@@ -399,7 +399,7 @@ func (s *GossipStoreImpl) updateMetroDomainsMap(failureDomain string, nodeId typ
 	}
 }
 
-func (s *GossipStoreImpl) getNodesFromMetroDomain(failureDomain string) nodeIdMap {
+func (s *GossipStoreImpl) getNodesFromClusterDomain(failureDomain string) nodeIdMap {
 	s.failureDomainsMapLock.Lock()
 	defer s.failureDomainsMapLock.Unlock()
 	return s.failureDomainsMap[failureDomain]

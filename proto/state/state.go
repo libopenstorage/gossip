@@ -30,10 +30,10 @@ type State interface {
 		nodeInfoMap types.NodeInfoMap,
 	) (State, error)
 
-	// UpdateMetroDomainsActiveMap is an event triggered from an external entity indicating
+	// UpdateClusterDomainsActiveMap is an event triggered from an external entity indicating
 	// which failure domains are active or inactive. All the nodes in the active failure domain will remain online
 	// even if they are out of quorum, while nodes from the deactivated ones will shoot themselves
-	UpdateMetroDomainsActiveMap(
+	UpdateClusterDomainsActiveMap(
 		nodeInfoMap types.NodeInfoMap,
 	) (State, error)
 

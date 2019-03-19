@@ -16,7 +16,7 @@ const (
 	zone3 = "zone3"
 )
 
-var activeMap = types.MetroDomainsActiveMap{
+var activeMap = types.ClusterDomainsActiveMap{
 	zone1: true,
 	zone2: true,
 	zone3: true,
@@ -29,7 +29,7 @@ func startNodeFd(
 	selfFailureDomain string,
 	knownNodesMap map[string]string,
 	peers map[types.NodeId]types.NodeUpdate,
-	activeMap types.MetroDomainsActiveMap,
+	activeMap types.ClusterDomainsActiveMap,
 ) (*GossiperImpl, types.StoreKey) {
 	g, _ := newGossiperImpl(
 		selfIp,
@@ -305,9 +305,9 @@ func TestQuorumFdTwoFailureDomainsDownAndDeactivated(t *testing.T) {
 	activeMap[zone2] = false
 
 	// Update the deactivated list
-	err := gossipers[4].UpdateMetroDomainsActiveMap(activeMap)
+	err := gossipers[4].UpdateClusterDomainsActiveMap(activeMap)
 	require.NoError(t, err, "Unexpected error on updating deactivated list for 4")
-	err = gossipers[5].UpdateMetroDomainsActiveMap(activeMap)
+	err = gossipers[5].UpdateClusterDomainsActiveMap(activeMap)
 	require.NoError(t, err, "Unexpected error on updating deactivated list for 5")
 
 	time.Sleep(5 * time.Second)
@@ -330,9 +330,9 @@ func TestQuorumFdTwoFailureDomainsDownDeactivatedAndReactivated(t *testing.T) {
 	activeMap[zone1] = false
 	activeMap[zone2] = false
 
-	err := gossipers[4].UpdateMetroDomainsActiveMap(activeMap)
+	err := gossipers[4].UpdateClusterDomainsActiveMap(activeMap)
 	require.NoError(t, err, "Unexpected error on updating deactivated list for 4")
-	err = gossipers[5].UpdateMetroDomainsActiveMap(activeMap)
+	err = gossipers[5].UpdateClusterDomainsActiveMap(activeMap)
 	require.NoError(t, err, "Unexpected error on updating deactivated list for 5")
 
 	time.Sleep(5 * time.Second)
@@ -366,7 +366,7 @@ func TestQuorumFdTwoFailureDomainsDownDeactivatedAndReactivated(t *testing.T) {
 	activeMap[zone2] = true
 	// Remove zone 2 from deactivation list
 	for _, g := range gossipers {
-		g.UpdateMetroDomainsActiveMap(activeMap)
+		g.UpdateClusterDomainsActiveMap(activeMap)
 	}
 
 	time.Sleep(5 * time.Second)
@@ -381,7 +381,7 @@ func TestQuorumFdTwoFailureDomainsDownDeactivatedAndReactivated(t *testing.T) {
 	activeMap[zone1] = true
 	// Remove zone 1 from deactivation list
 	for _, g := range gossipers {
-		g.UpdateMetroDomainsActiveMap(activeMap)
+		g.UpdateClusterDomainsActiveMap(activeMap)
 	}
 
 	time.Sleep(5 * time.Second)

@@ -11,7 +11,7 @@ import (
 // failure domain information to determine whether a node is in quorum
 type failureDomainsQuorum struct {
 	selfId    types.NodeId
-	activeMap types.MetroDomainsActiveMap
+	activeMap types.ClusterDomainsActiveMap
 	lock      sync.Mutex
 }
 
@@ -20,7 +20,7 @@ func (f *failureDomainsQuorum) IsNodeInQuorum(localNodeInfoMap types.NodeInfoMap
 	defer f.lock.Unlock()
 
 	selfNodeInfo := localNodeInfoMap[f.selfId]
-	selfDomain := selfNodeInfo.MetroDomain
+	selfDomain := selfNodeInfo.ClusterDomain
 
 	if !f.isNodeActive(selfDomain) {
 		// This node is a part of deactivated failure domain
@@ -33,7 +33,7 @@ func (f *failureDomainsQuorum) IsNodeInQuorum(localNodeInfoMap types.NodeInfoMap
 
 	for _, nodeInfo := range localNodeInfoMap {
 		if nodeInfo.QuorumMember {
-			if f.isNodeActive(nodeInfo.MetroDomain) {
+			if f.isNodeActive(nodeInfo.ClusterDomain) {
 				// update the total nodes in active domain
 				totalNodesInActiveDomains++
 			} else {
@@ -65,12 +65,12 @@ func (f *failureDomainsQuorum) UpdateNumOfQuorumMembers(numOfQuorumMembers uint)
 	return
 }
 
-func (f *failureDomainsQuorum) UpdateMetroDomainsActiveMap(activeMap types.MetroDomainsActiveMap) bool {
+func (f *failureDomainsQuorum) UpdateClusterDomainsActiveMap(activeMap types.ClusterDomainsActiveMap) bool {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
 	prevMap := f.activeMap
-	f.activeMap = make(types.MetroDomainsActiveMap)
+	f.activeMap = make(types.ClusterDomainsActiveMap)
 
 	var stateChanged bool
 	for domain, isActive := range activeMap {

@@ -48,7 +48,7 @@ func (gd *GossipDelegate) InitGossipDelegate(
 	gossipVersion string,
 	quorumTimeout time.Duration,
 	clusterId string,
-	selfMetroDomain string,
+	selfClusterDomain string,
 	ping func(types.NodeId, string) (time.Duration, error),
 ) {
 	gd.GenNumber = genNumber
@@ -61,7 +61,7 @@ func (gd *GossipDelegate) InitGossipDelegate(
 		gossipVersion,
 		types.NODE_STATUS_NOT_IN_QUORUM,
 		clusterId,
-		selfMetroDomain,
+		selfClusterDomain,
 	)
 	gd.quorumTimeout = quorumTimeout
 	gd.nodeDownProbationManager = probation.NewProbationManager(
@@ -392,8 +392,8 @@ func (gd *GossipDelegate) handleStateEvents() {
 			gd.currentState, _ = gd.currentState.NodeLeave(gd.GetLocalState())
 		case types.UPDATE_CLUSTER_SIZE:
 			gd.currentState, _ = gd.currentState.UpdateClusterSize(gd.GetLocalState())
-		case types.UPDATE_METRO_DOMAINS_ACTIVE_MAP:
-			gd.currentState, _ = gd.currentState.UpdateMetroDomainsActiveMap(gd.GetLocalState())
+		case types.UPDATE_CLUSTER_DOMAINS_ACTIVE_MAP:
+			gd.currentState, _ = gd.currentState.UpdateClusterDomainsActiveMap(gd.GetLocalState())
 		case types.TIMEOUT:
 			newState, _ := gd.currentState.Timeout(gd.GetLocalState())
 			if newState.NodeStatus() != gd.currentState.NodeStatus() {
@@ -422,9 +422,9 @@ func (gd *GossipDelegate) probationIDToNodeName(probationID string) string {
 
 // isNodeSuspect returns a boolean indicating whether a peer node should be put
 // in suspected Offline state. For the given nodeId, it finds out all its peers from
-// the same metro domain. If even one ping to such peer node succeeds it assumes that
-// only the suspected node is down and the whole metro domain is still operational.
-// If all the pings to peer nodes in that metro domain fail we put the node in
+// the same cluster domain. If even one ping to such peer node succeeds it assumes that
+// only the suspected node is down and the whole cluster domain is still operational.
+// If all the pings to peer nodes in that cluster domain fail we put the node in
 // suspect down state
 func (gd *GossipDelegate) isNodeSuspect(nodeId types.NodeId) bool {
 	nodeInfo, err := gd.GetLocalNodeInfo(nodeId)
@@ -434,7 +434,7 @@ func (gd *GossipDelegate) isNodeSuspect(nodeId types.NodeId) bool {
 		// We will mark it as Offline immediately
 		return false
 	}
-	nodeList := gd.getNodesFromMetroDomain(nodeInfo.MetroDomain)
+	nodeList := gd.getNodesFromClusterDomain(nodeInfo.ClusterDomain)
 	for fdNodeId, _ := range nodeList {
 		if fdNodeId == nodeId {
 			// No need of pinging the suspected node
@@ -451,17 +451,17 @@ func (gd *GossipDelegate) isNodeSuspect(nodeId types.NodeId) bool {
 		logrus.Infof("gossip: pinging peer node (%v: %v) for suspect %v", fdNodeId, nodeInfo.Addr, nodeId)
 		_, pingErr := gd.ping(fdNodeId, nodeInfo.Addr)
 		if pingErr != nil {
-			// Ping to a node in the same metro domain as the suspected node
+			// Ping to a node in the same cluster domain as the suspected node
 			// failed. Try another node
 			logrus.Infof("gossip: ping to node (%v: %v) in failure"+
-				" domain %v failed: %v", fdNodeId, nodeInfo.Addr, nodeInfo.MetroDomain, pingErr)
+				" domain %v failed: %v", fdNodeId, nodeInfo.Addr, nodeInfo.ClusterDomain, pingErr)
 			continue
 		} else {
-			// Ping to a node in the same metro domain succeeded
-			// The metro domain is online and only this node is offline
+			// Ping to a node in the same cluster domain succeeded
+			// The cluster domain is online and only this node is offline
 			return false
 		}
 	}
-	// All the pings failed. The metro domain is down. Put the node in suspect before marking it down.
+	// All the pings failed. The cluster domain is down. Put the node in suspect before marking it down.
 	return true
 }

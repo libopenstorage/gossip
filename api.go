@@ -81,13 +81,13 @@ type Gossiper interface {
 	// It returns the nodeId that was marked down
 	ExternalNodeLeave(nodeId types.NodeId) types.NodeId
 
-	// UpdateMetroDomainsActiveMap updates the metro domain active map
+	// UpdateClusterDomainsActiveMap updates the cluster domain active map
 	// All the nodes in an inactive domain will shoot themselves down
 	// and will not participate in quorum decisions
-	UpdateMetroDomainsActiveMap(types.MetroDomainsActiveMap) error
+	UpdateClusterDomainsActiveMap(types.ClusterDomainsActiveMap) error
 
-	// UpdateSelfMetroDomain updates this node's metro domain
-	UpdateSelfMetroDomain(selfFailureDomain string)
+	// UpdateSelfClusterDomain updates this node's cluster domain
+	UpdateSelfClusterDomain(selfFailureDomain string)
 
 	// Ping pings the given node's ip:port
 	// Note: This API is only supported with Gossip Version v2 and higher

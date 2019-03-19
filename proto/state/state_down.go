@@ -51,7 +51,7 @@ func (d *down) UpdateClusterSize(
 	return d, nil
 }
 
-func (d *down) UpdateMetroDomainsActiveMap(
+func (d *down) UpdateClusterDomainsActiveMap(
 	localNodeInfo types.NodeInfoMap,
 ) (State, error) {
 	return d, nil

@@ -13,9 +13,9 @@ type Quorum interface {
 	// UpdateNumOfQuorumMembers updates the number of members
 	// participating in quorum calculationgs
 	UpdateNumOfQuorumMembers(numQuorumMembers uint)
-	// UpdateMetroDomainsActiveMap updates the map of active and inactive failure
+	// UpdateClusterDomainsActiveMap updates the map of active and inactive failure
 	// domains. It returns a boolean value indicating if an update was done
-	UpdateMetroDomainsActiveMap(activeMap types.MetroDomainsActiveMap) bool
+	UpdateClusterDomainsActiveMap(activeMap types.ClusterDomainsActiveMap) bool
 	// Type returns the type of quorum implementation
 	Type() types.QuorumProvider
 }
@@ -64,7 +64,7 @@ func (d *defaultQuorum) UpdateNumOfQuorumMembers(numOfQuorumMembers uint) {
 	d.numQuorumMembers = numOfQuorumMembers
 }
 
-func (d *defaultQuorum) UpdateMetroDomainsActiveMap(activeMap types.MetroDomainsActiveMap) bool {
+func (d *defaultQuorum) UpdateClusterDomainsActiveMap(activeMap types.ClusterDomainsActiveMap) bool {
 	// no op
 	return false
 }

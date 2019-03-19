@@ -70,7 +70,7 @@ func (g *GossiperImpl) Init(
 	gossipIntervals types.GossipIntervals,
 	gossipVersion string,
 	clusterId string,
-	selfMetroDomain string,
+	selfClusterDomain string,
 ) {
 	g.name = ipPort
 	g.shutDown = false
@@ -106,7 +106,7 @@ func (g *GossiperImpl) Init(
 		gossipVersion,
 		gossipIntervals.QuorumTimeout,
 		clusterId,
-		selfMetroDomain,
+		selfClusterDomain,
 		g.Ping,
 	)
 	mlConf.Delegate = ml.Delegate(g)
@@ -144,7 +144,7 @@ func (g *GossiperImpl) Start(config types.GossipStartConfiguration) error {
 		for nodeId, nodeConfig := range config.Nodes {
 			knownIps = append(knownIps, nodeConfig.KnownUrl)
 			// Add the node's entry in the failure domains map
-			g.updateMetroDomainsMap(nodeConfig.MetroDomain, nodeId)
+			g.updateClusterDomainsMap(nodeConfig.ClusterDomain, nodeId)
 		}
 		joinedNodes, err := list.Join(knownIps)
 		if err != nil {
@@ -154,7 +154,7 @@ func (g *GossiperImpl) Start(config types.GossipStartConfiguration) error {
 		log.Infof("gossip: Successfully joined with %v node(s)", joinedNodes)
 
 	}
-	g.quorumProvider.UpdateMetroDomainsActiveMap(config.ActiveMap)
+	g.quorumProvider.UpdateClusterDomainsActiveMap(config.ActiveMap)
 	return nil
 }
 
@@ -244,19 +244,19 @@ func (g *GossiperImpl) ExternalNodeLeave(nodeId types.NodeId) types.NodeId {
 	}
 }
 
-func (g *GossiperImpl) UpdateMetroDomainsActiveMap(activeMap types.MetroDomainsActiveMap) error {
+func (g *GossiperImpl) UpdateClusterDomainsActiveMap(activeMap types.ClusterDomainsActiveMap) error {
 	if g.quorumProvider == nil {
 		return fmt.Errorf("gossip: not started yet")
 	}
-	stateChanged := g.quorumProvider.UpdateMetroDomainsActiveMap(activeMap)
+	stateChanged := g.quorumProvider.UpdateClusterDomainsActiveMap(activeMap)
 	if stateChanged {
-		g.triggerStateEvent(types.UPDATE_METRO_DOMAINS_ACTIVE_MAP)
+		g.triggerStateEvent(types.UPDATE_CLUSTER_DOMAINS_ACTIVE_MAP)
 	}
 	return nil
 }
 
-func (g *GossiperImpl) UpdateSelfMetroDomain(selfMetroDomain string) {
-	newUpdate := g.updateSelfMetroDomain(selfMetroDomain)
+func (g *GossiperImpl) UpdateSelfClusterDomain(selfClusterDomain string) {
+	newUpdate := g.updateSelfClusterDomain(selfClusterDomain)
 	if newUpdate {
 		// trigger a SelfAlive event
 		g.triggerStateEvent(types.SELF_ALIVE)
