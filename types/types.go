@@ -36,6 +36,10 @@ type QuorumProvider uint8
 // indicating whether that domain is active or inactive
 type ClusterDomainsActiveMap map[string]bool
 
+// ClusterDomainsQuorumMembersMap is a map of cluster domains to the number
+// of quorum members in that domain
+type ClusterDomainsQuorumMembersMap map[string]int
+
 // Constant Definitions
 
 const (

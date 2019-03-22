@@ -24,7 +24,7 @@ func getDefaultNodeInfoMap(withNonQuorumMembers bool) types.NodeInfoMap {
 			quorumMember = false
 		}
 		nodeInfoMap[types.NodeId(nodes[i])] = types.NodeInfo{
-			FailureDomain: zone,
+			ClusterDomain: zone,
 			QuorumMember:  quorumMember,
 			Status:        types.NODE_STATUS_UP,
 		}
@@ -40,6 +40,15 @@ func TestQuorumProviderAllNodesUp(t *testing.T) {
 	for i, _ := range nodes {
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
+		q.UpdateNumOfQuorumMembers(
+			types.ClusterDomainsQuorumMembersMap(
+				map[string]int{
+					zones[0]: 2,
+					zones[1]: 2,
+					zones[2]: 2,
+				},
+			),
+		)
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
 				map[string]bool{
@@ -61,6 +70,15 @@ func TestQuorumProviderOneZoneDeactivated(t *testing.T) {
 	for i, _ := range nodes {
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
+		q.UpdateNumOfQuorumMembers(
+			types.ClusterDomainsQuorumMembersMap(
+				map[string]int{
+					zones[0]: 2,
+					zones[1]: 2,
+					zones[2]: 2,
+				},
+			),
+		)
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
 				map[string]bool{
@@ -86,6 +104,15 @@ func TestQuorumProviderTwoZonesDeactivated(t *testing.T) {
 	for i, _ := range nodes {
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
+		q.UpdateNumOfQuorumMembers(
+			types.ClusterDomainsQuorumMembersMap(
+				map[string]int{
+					zones[0]: 2,
+					zones[1]: 2,
+					zones[2]: 2,
+				},
+			),
+		)
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
 				map[string]bool{
@@ -121,6 +148,15 @@ func TestQuorumProviderOneZoneDeactivatedOneNodeOffline(t *testing.T) {
 		}
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
+		q.UpdateNumOfQuorumMembers(
+			types.ClusterDomainsQuorumMembersMap(
+				map[string]int{
+					zones[0]: 2,
+					zones[1]: 2,
+					zones[2]: 2,
+				},
+			),
+		)
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
 				map[string]bool{
@@ -159,6 +195,16 @@ func TestQuorumProviderOneZoneDeactivatedQuorumNodesOffline(t *testing.T) {
 		}
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
+		q.UpdateNumOfQuorumMembers(
+			types.ClusterDomainsQuorumMembersMap(
+				map[string]int{
+					zones[0]: 2,
+					zones[1]: 2,
+					zones[2]: 2,
+				},
+			),
+		)
+
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
 				map[string]bool{
@@ -182,6 +228,15 @@ func TestQuorumProviderOneZoneDeactivatedWithNonQuorumMembers(t *testing.T) {
 	for i, _ := range nodes {
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
+		q.UpdateNumOfQuorumMembers(
+			types.ClusterDomainsQuorumMembersMap(
+				map[string]int{
+					zones[0]: 1,
+					zones[1]: 1,
+					zones[2]: 1,
+				},
+			),
+		)
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
 				map[string]bool{
@@ -217,6 +272,15 @@ func TestQuorumProviderOneZoneDeactivatedOneNodeOfflineWithNonQuorumMembers(t *t
 
 		selfId := types.NodeId(nodes[i])
 		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
+		q.UpdateNumOfQuorumMembers(
+			types.ClusterDomainsQuorumMembersMap(
+				map[string]int{
+					zones[0]: 1,
+					zones[1]: 1,
+					zones[2]: 1,
+				},
+			),
+		)
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
 				map[string]bool{
@@ -227,5 +291,36 @@ func TestQuorumProviderOneZoneDeactivatedOneNodeOfflineWithNonQuorumMembers(t *t
 			),
 		)
 		require.False(t, q.IsNodeInQuorum(localNodeInfoMap), "Expected node not in quorum")
+	}
+}
+
+func TestQuorumProviderNodesNeverGossiped(t *testing.T) {
+	// 14 nodes in the cluster
+	// 6 nodes gossiped
+	// 8 nodes never gossiped
+	localNodeInfoMap := getDefaultNodeInfoMap(false)
+	// Loop over the 6 nodes
+	for i, _ := range nodes {
+		selfId := types.NodeId(nodes[i])
+		q := NewQuorumProvider(selfId, types.QUORUM_PROVIDER_FAILURE_DOMAINS)
+		q.UpdateNumOfQuorumMembers(
+			types.ClusterDomainsQuorumMembersMap(
+				map[string]int{
+					zones[0]: 14,
+					zones[1]: 14,
+					zones[2]: 14,
+				},
+			),
+		)
+		q.UpdateClusterDomainsActiveMap(
+			types.ClusterDomainsActiveMap(
+				map[string]bool{
+					zones[0]: true,
+					zones[1]: true,
+					zones[2]: true,
+				},
+			),
+		)
+		require.False(t, q.IsNodeInQuorum(localNodeInfoMap), "Expected node in quorum")
 	}
 }
