@@ -51,10 +51,10 @@ func TestQuorumProviderAllNodesUp(t *testing.T) {
 		)
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
-				map[string]bool{
-					zones[0]: true,
-					zones[1]: true,
-					zones[2]: true,
+				map[string]types.ClusterDomainState{
+					zones[0]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
+					zones[1]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
+					zones[2]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
 				},
 			),
 		)
@@ -81,10 +81,10 @@ func TestQuorumProviderOneZoneDeactivated(t *testing.T) {
 		)
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
-				map[string]bool{
-					zones[0]: false,
-					zones[1]: true,
-					zones[2]: true,
+				map[string]types.ClusterDomainState{
+					zones[0]: types.CLUSTER_DOMAIN_STATE_INACTIVE,
+					zones[1]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
+					zones[2]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
 				},
 			),
 		)
@@ -115,10 +115,10 @@ func TestQuorumProviderTwoZonesDeactivated(t *testing.T) {
 		)
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
-				map[string]bool{
-					zones[0]: false,
-					zones[1]: false,
-					zones[2]: true,
+				map[string]types.ClusterDomainState{
+					zones[0]: types.CLUSTER_DOMAIN_STATE_INACTIVE,
+					zones[1]: types.CLUSTER_DOMAIN_STATE_INACTIVE,
+					zones[2]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
 				},
 			),
 		)
@@ -159,10 +159,10 @@ func TestQuorumProviderOneZoneDeactivatedOneNodeOffline(t *testing.T) {
 		)
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
-				map[string]bool{
-					zones[0]: true,
-					zones[1]: true,
-					zones[2]: false,
+				map[string]types.ClusterDomainState{
+					zones[0]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
+					zones[1]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
+					zones[2]: types.CLUSTER_DOMAIN_STATE_INACTIVE,
 				},
 			),
 		)
@@ -207,10 +207,10 @@ func TestQuorumProviderOneZoneDeactivatedQuorumNodesOffline(t *testing.T) {
 
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
-				map[string]bool{
-					zones[0]: true,
-					zones[1]: true,
-					zones[2]: false,
+				map[string]types.ClusterDomainState{
+					zones[0]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
+					zones[1]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
+					zones[2]: types.CLUSTER_DOMAIN_STATE_INACTIVE,
 				},
 			),
 		)
@@ -239,10 +239,10 @@ func TestQuorumProviderOneZoneDeactivatedWithNonQuorumMembers(t *testing.T) {
 		)
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
-				map[string]bool{
-					zones[0]: false,
-					zones[1]: true,
-					zones[2]: true,
+				map[string]types.ClusterDomainState{
+					zones[0]: types.CLUSTER_DOMAIN_STATE_INACTIVE,
+					zones[1]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
+					zones[2]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
 				},
 			),
 		)
@@ -283,10 +283,10 @@ func TestQuorumProviderOneZoneDeactivatedOneNodeOfflineWithNonQuorumMembers(t *t
 		)
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
-				map[string]bool{
-					zones[0]: false,
-					zones[1]: true,
-					zones[2]: true,
+				map[string]types.ClusterDomainState{
+					zones[0]: types.CLUSTER_DOMAIN_STATE_INACTIVE,
+					zones[1]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
+					zones[2]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
 				},
 			),
 		)
@@ -314,10 +314,10 @@ func TestQuorumProviderNodesNeverGossiped(t *testing.T) {
 		)
 		q.UpdateClusterDomainsActiveMap(
 			types.ClusterDomainsActiveMap(
-				map[string]bool{
-					zones[0]: true,
-					zones[1]: true,
-					zones[2]: true,
+				map[string]types.ClusterDomainState{
+					zones[0]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
+					zones[1]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
+					zones[2]: types.CLUSTER_DOMAIN_STATE_ACTIVE,
 				},
 			),
 		)

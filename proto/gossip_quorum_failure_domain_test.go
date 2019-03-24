@@ -301,8 +301,8 @@ func TestQuorumFdTwoFailureDomainsDownAndDeactivated(t *testing.T) {
 	_, _, gossipers, _ := testTwoFailureDomainsDown(t)
 
 	// Update the deactivated list
-	activeMap[zone1] = false
-	activeMap[zone2] = false
+	activeMap[zone1] = types.CLUSTER_DOMAIN_STATE_INACTIVE
+	activeMap[zone2] = types.CLUSTER_DOMAIN_STATE_INACTIVE
 
 	// Update the deactivated list
 	err := gossipers[4].UpdateClusterDomainsActiveMap(activeMap)
@@ -327,8 +327,8 @@ func TestQuorumFdTwoFailureDomainsDownDeactivatedAndReactivated(t *testing.T) {
 	nodes, peers, gossipers, _ := testTwoFailureDomainsDown(t)
 
 	// Update the deactivated list
-	activeMap[zone1] = false
-	activeMap[zone2] = false
+	activeMap[zone1] = types.CLUSTER_DOMAIN_STATE_INACTIVE
+	activeMap[zone2] = types.CLUSTER_DOMAIN_STATE_INACTIVE
 
 	err := gossipers[4].UpdateClusterDomainsActiveMap(activeMap)
 	require.NoError(t, err, "Unexpected error on updating deactivated list for 4")
@@ -363,7 +363,7 @@ func TestQuorumFdTwoFailureDomainsDownDeactivatedAndReactivated(t *testing.T) {
 	require.Equal(t, types.NODE_STATUS_UP, gossipers[5].GetSelfStatus(), "Unexpected state found for node 3")
 	require.Equal(t, types.NODE_STATUS_UP, gossipers[5].GetSelfStatus(), "Unexpected state found for node 3")
 
-	activeMap[zone2] = true
+	activeMap[zone2] = types.CLUSTER_DOMAIN_STATE_ACTIVE
 	// Remove zone 2 from deactivation list
 	for _, g := range gossipers {
 		g.UpdateClusterDomainsActiveMap(activeMap)
@@ -378,7 +378,7 @@ func TestQuorumFdTwoFailureDomainsDownDeactivatedAndReactivated(t *testing.T) {
 	require.Equal(t, types.NODE_STATUS_UP, gossipers[5].GetSelfStatus(), "Unexpected state found for node 4")
 	require.Equal(t, types.NODE_STATUS_UP, gossipers[5].GetSelfStatus(), "Unexpected state found for node 5")
 
-	activeMap[zone1] = true
+	activeMap[zone1] = types.CLUSTER_DOMAIN_STATE_ACTIVE
 	// Remove zone 1 from deactivation list
 	for _, g := range gossipers {
 		g.UpdateClusterDomainsActiveMap(activeMap)

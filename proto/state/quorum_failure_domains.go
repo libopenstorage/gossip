@@ -31,7 +31,7 @@ func (f *failureDomainsQuorum) IsNodeInQuorum(localNodeInfoMap types.NodeInfoMap
 
 	totalNodesInActiveDomains := uint(0)
 	for domainName, isActive := range f.activeMap {
-		if !isActive {
+		if isActive != types.CLUSTER_DOMAIN_STATE_ACTIVE {
 			continue
 		}
 		quorumCount := f.quorumMembersMap[domainName]
@@ -62,7 +62,10 @@ func (f *failureDomainsQuorum) IsNodeInQuorum(localNodeInfoMap types.NodeInfoMap
 
 func (f *failureDomainsQuorum) isNodeActive(ipDomain string) bool {
 	isActive, _ := f.activeMap[ipDomain]
-	return isActive
+	if isActive == types.CLUSTER_DOMAIN_STATE_ACTIVE {
+		return true
+	}
+	return false
 }
 
 func (f *failureDomainsQuorum) UpdateNumOfQuorumMembers(quorumMembersMap types.ClusterDomainsQuorumMembersMap) {
@@ -90,7 +93,7 @@ func (f *failureDomainsQuorum) UpdateClusterDomainsActiveMap(activeMap types.Clu
 		if prevState != isActive {
 			stateChanged = true
 			// State has changed
-			if isActive {
+			if isActive == types.CLUSTER_DOMAIN_STATE_ACTIVE {
 				logrus.Infof("gossip: Marking %v domain as active", domain)
 			} else {
 				logrus.Infof("gossip: Marking %v domain as inactive", domain)

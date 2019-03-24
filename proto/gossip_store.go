@@ -350,9 +350,10 @@ func (s *GossipStoreImpl) updateCluster(
 
 	// Update quorum members
 	// Update the failure domains for the nodes
-	quorumMembersMap := new(types.ClusterDomainsQuorumMembersMap)
+	quorumMembersMap := make(types.ClusterDomainsQuorumMembersMap)
 	for id, nodeInfo := range s.nodeMap {
-		if update, ok := peers[id]; ok {
+		update, ok := peers[id]
+		if ok {
 			nodeInfo.QuorumMember = update.QuorumMember
 			nodeInfo.ClusterDomain = update.ClusterDomain
 			nodeInfo.Addr = update.Addr
