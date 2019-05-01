@@ -34,6 +34,37 @@ func TestProbationAddTo2ndQueue(t *testing.T) {
 	require.NoError(t, err, "Failed to Add")
 }
 
+func TestProbationAddAgainWithUpdateExists(t *testing.T) {
+	doneCh := make(chan int)
+	callbackFn := func(id string, clientData interface{}) error {
+		doneCh <- 1
+		return nil
+	}
+
+	p := NewProbationManager("test", testProbationTimeout, callbackFn)
+	err := p.Start()
+	time.Sleep(testStartWaitTime)
+
+	require.NoError(t, err, "Failed to Start")
+	// updateIfExists = false
+	err = p.Add("client1", nil, false)
+	require.NoError(t, err, "Failed to Add")
+
+	time.Sleep(1 * time.Second)
+	err = p.Add("client1", nil, true)
+	require.NoError(t, err, "Failed to Add")
+
+	// wait for proabtion to expire
+	select {
+	case <-doneCh:
+		// Add it back with update exists set to true
+		err = p.Add("client1", nil, true)
+		require.NoError(t, err, "Failed to Add")
+	case <-time.After(testWaitTime):
+		require.Fail(t, "probation not expired")
+	}
+}
+
 func TestProbationExpiry(t *testing.T) {
 	p := setup()
 	err := p.Start()
