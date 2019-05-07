@@ -23,7 +23,7 @@ func newGossiperImpl(
 	knownNodesMap map[string]string,
 	version, clusterId string,
 	quorumProvider types.QuorumProvider,
-	activeMap types.MetroDomainsActiveMap,
+	activeMap types.ClusterDomainsActiveMap,
 ) (*GossiperImpl, error) {
 	g := new(GossiperImpl)
 	gi := types.GossipIntervals{
@@ -41,8 +41,8 @@ func newGossiperImpl(
 	i := 0
 	for nodeIp, metroDomain := range knownNodesMap {
 		startConfig.Nodes[types.NodeId(strconv.FormatInt(int64(i), 10))] = types.GossipNodeConfiguration{
-			KnownUrl:    nodeIp,
-			MetroDomain: metroDomain,
+			KnownUrl:      nodeIp,
+			ClusterDomain: metroDomain,
 		}
 		i++
 	}

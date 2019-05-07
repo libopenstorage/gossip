@@ -17,9 +17,9 @@ const (
 )
 
 var activeMap = types.ClusterDomainsActiveMap{
-	zone1: true,
-	zone2: true,
-	zone3: true,
+	zone1: types.CLUSTER_DOMAIN_STATE_ACTIVE,
+	zone2: types.CLUSTER_DOMAIN_STATE_ACTIVE,
+	zone3: types.CLUSTER_DOMAIN_STATE_ACTIVE,
 }
 
 func startNodeFd(
@@ -80,7 +80,7 @@ func setupTestNodes(t *testing.T) (map[string]string, map[types.NodeId]types.Nod
 	}
 
 	// Let the nodes gossip to each other
-	time.Sleep(gossipers[0].GossipInterval() * time.Duration(len(nodes)+1))
+	time.Sleep(gossipers[0].GossipInterval() * time.Duration(len(nodes)*2))
 
 	for i, g := range gossipers {
 		require.Equal(t, g.GetSelfStatus(), types.NODE_STATUS_UP, "Expected Node %v to be up", i)
@@ -263,7 +263,7 @@ func testTwoFailureDomainsDown(t *testing.T) (map[string]string, map[types.NodeI
 		require.Equal(t, types.NODE_STATUS_SUSPECT_DOWN, peerDownNode.Status, "Unexpected state found in 5 for peer node %v", downNode)
 	}
 
-	// Nodes 4 and 5 should be suspected in quorum
+	// Nodes 4 and 5 should be suspected not in quorum
 	require.Equal(t, types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM, gossipers[4].GetSelfStatus(), "Unexpected state found for node 4")
 	require.Equal(t, types.NODE_STATUS_SUSPECT_NOT_IN_QUORUM, gossipers[5].GetSelfStatus(), "Unexpected state found for node 5")
 
@@ -274,11 +274,11 @@ func testTwoFailureDomainsDown(t *testing.T) (map[string]string, map[types.NodeI
 	for _, downNode := range downNodes {
 		peerDownNode, err := gossipers[4].GetLocalNodeInfo(downNode)
 		require.NoError(t, err, "Unexpected error on GetLocalNodeInfo")
-		require.Equal(t, types.NODE_STATUS_DOWN, peerDownNode.Status, "Unexpected state found in 4 for peer node %v", downNode)
+		require.Equal(t, types.NODE_STATUS_SUSPECT_DOWN, peerDownNode.Status, "Unexpected state found in 4 for peer node %v", downNode)
 
 		peerDownNode, err = gossipers[5].GetLocalNodeInfo(downNode)
 		require.NoError(t, err, "Unexpected error on GetLocalNodeInfo")
-		require.Equal(t, types.NODE_STATUS_DOWN, peerDownNode.Status, "Unexpected state found in 5 for peer node %v", downNode)
+		require.Equal(t, types.NODE_STATUS_SUSPECT_DOWN, peerDownNode.Status, "Unexpected state found in 5 for peer node %v", downNode)
 	}
 
 	require.Equal(t, types.NODE_STATUS_NOT_IN_QUORUM, gossipers[4].GetSelfStatus(), "Unexpected state found for node 4")
@@ -316,8 +316,8 @@ func TestQuorumFdTwoFailureDomainsDownAndDeactivated(t *testing.T) {
 	require.Equal(t, types.NODE_STATUS_UP, gossipers[4].GetSelfStatus(), "Unexpected state found for node 4")
 	require.Equal(t, types.NODE_STATUS_UP, gossipers[5].GetSelfStatus(), "Unexpected state found for node 5")
 
-	activeMap[zone1] = true
-	activeMap[zone2] = true
+	activeMap[zone1] = types.CLUSTER_DOMAIN_STATE_ACTIVE
+	activeMap[zone2] = types.CLUSTER_DOMAIN_STATE_ACTIVE
 	shutdownTestNodes(gossipers)
 }
 
