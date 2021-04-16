@@ -83,6 +83,7 @@ func (g *GossiperImpl) Init(
 	// Memberlist Config setup
 	mlConf := ml.DefaultLANConfig()
 
+	// Use net.SplitHostPort which handles IPv6 addrs
 	ip, port, _ := net.SplitHostPort(ipPort)
 
 	port64, _ := strconv.ParseInt(port, 10, 64)
