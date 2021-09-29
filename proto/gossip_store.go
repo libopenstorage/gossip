@@ -436,7 +436,14 @@ func (s *GossipStoreImpl) convertFromBytes(buf []byte, msg interface{}) error {
 func (s *GossipStoreImpl) getLocalState() types.NodeInfoMap {
 	localCopy := make(types.NodeInfoMap)
 	for key, value := range s.nodeMap {
-		localCopy[key] = value
+		cp := *(&value)         // make a copy
+		if value.Value != nil { // also copy the inner maps
+			cp.Value = make(types.StoreMap)
+			for k2, v2 := range value.Value {
+				cp.Value[k2] = v2
+			}
+		}
+		localCopy[key] = cp
 	}
 	return localCopy
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/libopenstorage/gossip/types"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -390,4 +391,47 @@ func TestGossipStoreBlackBoxTests(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestGetLocalState(t *testing.T) {
+	gs := &GossipStoreImpl{
+		nodeMap: types.NodeInfoMap{
+			"first": types.NodeInfo{
+				Id:           "first",
+				GenNumber:    1,
+				LastUpdateTs: time.Now(),
+				Value: types.StoreMap{
+					"first": "foo",
+				},
+			},
+			"second": types.NodeInfo{
+				Id:           "second",
+				GenNumber:    2,
+				LastUpdateTs: time.Now(),
+				Value: types.StoreMap{
+					"second": "bar",
+				},
+			},
+		},
+	}
+	// create a copy
+	aCopy := gs.getLocalState()
+
+	// insert some new fields into the copy
+	aCopy["third"] = types.NodeInfo{
+		Id:           "third",
+		GenNumber:    3,
+		LastUpdateTs: time.Now(),
+		Value: types.StoreMap{
+			"third": "pizza",
+		},
+	}
+	aCopy["second"].Value[`zz`] = "new value"
+
+	// ensure original did not get the new fields
+	assert.NotEmpty(t, gs.nodeMap["first"])
+	assert.Empty(t, gs.nodeMap["third"])
+	assert.NotEmpty(t, aCopy["third"])
+	assert.NotEmpty(t, aCopy["second"].Value[`zz`])
+	assert.Empty(t, gs.nodeMap["second"].Value[`zz`])
 }
