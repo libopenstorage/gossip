@@ -32,6 +32,7 @@ func newGossiperImpl(
 		ProbeInterval:    types.DEFAULT_PROBE_INTERVAL,
 		ProbeTimeout:     types.DEFAULT_PROBE_TIMEOUT,
 		QuorumTimeout:    TestQuorumTimeout,
+		SuspicionMult:    types.DEFAULT_SUSPICION_MULTIPLIER,
 	}
 	g.Init(ip, selfNodeId, 1, gi, version, clusterId, selfFailureDomain)
 	g.selfCorrect = false

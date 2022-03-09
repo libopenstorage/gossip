@@ -101,6 +101,7 @@ func (g *GossiperImpl) Init(
 	mlConf.GossipInterval = g.gossipInterval
 	// ProbeInterval used for broadcasts and decides probing behavior
 	mlConf.ProbeInterval = gossipIntervals.ProbeInterval
+	mlConf.SuspicionMult = gossipIntervals.SuspicionMult
 
 	// MemberDelegates
 	g.InitGossipDelegate(
