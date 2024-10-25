@@ -6,7 +6,6 @@ import (
 	"github.com/libopenstorage/gossip/types"
 )
 
-// TODO (dgoel): move interface to separate file
 // Quorum provides a set of APIs to determine and modify a node's Quorum state
 type Quorum interface {
 	// IsNodeInQuorum returns a boolean indicating whether a node is in quorum
@@ -34,8 +33,8 @@ func NewQuorumProvider(
 		return &defaultQuorum{
 			selfId: selfId,
 		}
-	case types.QUORUM_PROVIDER_BYPASS:
-		return &bypassQuorumProvider{}
+	case types.QUORUM_PROVIDER_NOOP:
+		return &noopQuorumProvider{}
 	default:
 		// retains old behavior for function default
 		return &failureDomainsQuorum{

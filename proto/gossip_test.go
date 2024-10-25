@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/libopenstorage/gossip/types"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -133,6 +134,7 @@ outer:
 	for _, origNode := range nodesIp {
 		var origIp string
 		for _, peerNode := range peerNodes {
+			logrus.Infof("origNode: %s, peerNode: %s", origNode, peerNode)
 			origIp = strings.Split(origNode, ":")[0]
 			if origIp == peerNode {
 				continue outer
@@ -140,6 +142,7 @@ outer:
 		}
 		t.Error("Peer nodes does not have added node: ", origIp)
 	}
+	logrus.Info("Here", peerNodes)
 
 	// test stop gossiper
 	for i := range nodesIp {
